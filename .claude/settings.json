@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mvn:*)",
+      "Bash(npm:*)",
+      "Bash(aws cloudformation:*)",
+      "Bash(aws s3:*)",
+      "Bash(git:*)",
+      "Bash(./infrastructure/scripts/*)"
+    ]
+  }
+}

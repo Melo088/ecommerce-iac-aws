@@ -1,0 +1,33 @@
+# Claude Code
+.claude/
+CLAUDE.md
+
+# Java / Maven
+backend/target/
+*.class
+*.jar
+*.war
+*.nar
+.mvn/
+!.mvn/wrapper/maven-wrapper.jar
+
+# Node / React
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.local
+
+# AWS / credenciales
+.env
+*.pem
+*.key
+aws-credentials
+
+# IDEs
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db

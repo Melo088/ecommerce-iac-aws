@@ -1,0 +1,165 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  ecommerce-iac-aws — RDS PostgreSQL 15, Single-AZ, db.t3.micro.
+  Desplegado en subredes privadas. Importa subnets de 01-vpc
+  y el Security Group de 02-security-groups.
+
+# ---------------------------------------------------------------------------
+# Parameters
+# ---------------------------------------------------------------------------
+Parameters:
+  Environment:
+    Type: String
+    Default: prod
+    AllowedValues: [dev, staging, prod]
+    Description: Entorno de despliegue
+
+  Owner:
+    Type: String
+    Default: Melo088-Esteban-GV
+    Description: Propietarios del stack
+
+  VpcStackName:
+    Type: String
+    Default: ecom-vpc-prod
+    Description: >
+      Nombre del stack 01-vpc desplegado. Usado para importar
+      PrivateSubnet1Id y PrivateSubnet2Id.
+
+  SgStackName:
+    Type: String
+    Default: ecom-sg-prod
+    Description: >
+      Nombre del stack 02-security-groups desplegado. Usado para
+      importar RdsSgId.
+
+  # ---- Credenciales de la base de datos ------------------------------------
+  DBName:
+    Type: String
+    Default: ecomdb
+    MinLength: 1
+    MaxLength: 64
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9_]*'
+    Description: Nombre de la base de datos inicial
+
+  DBUsername:
+    Type: String
+    Default: ecomadmin
+    MinLength: 1
+    MaxLength: 16
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9_]*'
+    Description: Usuario maestro de RDS
+
+  DBPassword:
+    Type: String
+    MinLength: 8
+    MaxLength: 41
+    NoEcho: true
+    Description: >
+      Contraseña del usuario maestro (min 8 caracteres).
+      No se muestra en la consola ni en los Outputs.
+
+# ---------------------------------------------------------------------------
+# Resources
+# ---------------------------------------------------------------------------
+Resources:
+
+  # ---- DB Subnet Group -----------------------------------------------------
+  # RDS necesita un subnet group con al menos dos subredes en distintas AZs,
+  # aunque Single-AZ solo use una. El grupo se crea en las privadas.
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupName: !Sub 'ecom-rds-subnet-group-${Environment}'
+      DBSubnetGroupDescription: !Sub 'Subredes privadas para RDS ${Environment}'
+      SubnetIds:
+        - !ImportValue
+          Fn::Sub: '${VpcStackName}-PrivateSubnet1Id'
+        - !ImportValue
+          Fn::Sub: '${VpcStackName}-PrivateSubnet2Id'
+      Tags:
+        - Key: Name
+          Value: !Sub 'ecom-rds-subnet-group-${Environment}'
+        - Key: Project
+          Value: ecommerce-iac-aws
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Owner
+          Value: !Ref Owner
+
+  # ---- RDS PostgreSQL Instance ---------------------------------------------
+  DBInstance:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Properties:
+      DBInstanceIdentifier: !Sub 'ecom-rds-${Environment}'
+      DBName: !Ref DBName
+      DBInstanceClass: db.t3.micro
+      Engine: postgres
+      EngineVersion: '15'
+      MasterUsername: !Ref DBUsername
+      MasterUserPassword: !Ref DBPassword
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VPCSecurityGroups:
+        - !ImportValue
+          Fn::Sub: '${SgStackName}-RdsSgId'
+      MultiAZ: false
+      PubliclyAccessible: false
+      StorageType: gp2
+      AllocatedStorage: '20'
+      MaxAllocatedStorage: 100
+      StorageEncrypted: false
+      BackupRetentionPeriod: 7
+      PreferredBackupWindow: '03:00-04:00'
+      PreferredMaintenanceWindow: 'sun:04:00-sun:05:00'
+      AutoMinorVersionUpgrade: true
+      DeletionProtection: false
+      EnablePerformanceInsights: false
+      Tags:
+        - Key: Name
+          Value: !Sub 'ecom-rds-${Environment}'
+        - Key: Project
+          Value: ecommerce-iac-aws
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Owner
+          Value: !Ref Owner
+
+# ---------------------------------------------------------------------------
+# Outputs — exportados para stacks dependientes (ASG user-data, CloudWatch)
+# ---------------------------------------------------------------------------
+Outputs:
+  DBEndpoint:
+    Description: Endpoint (hostname) de la instancia RDS
+    Value: !GetAtt DBInstance.Endpoint.Address
+    Export:
+      Name: !Sub '${AWS::StackName}-DBEndpoint'
+
+  DBPort:
+    Description: Puerto de la instancia RDS
+    Value: !GetAtt DBInstance.Endpoint.Port
+    Export:
+      Name: !Sub '${AWS::StackName}-DBPort'
+
+  DBName:
+    Description: Nombre de la base de datos
+    Value: !Ref DBName
+    Export:
+      Name: !Sub '${AWS::StackName}-DBName'
+
+  DBUsername:
+    Description: Usuario maestro de RDS
+    Value: !Ref DBUsername
+    Export:
+      Name: !Sub '${AWS::StackName}-DBUsername'
+
+  JDBCUrl:
+    Description: >
+      JDBC connection string para Spring Boot
+      (completar con la password en application.properties)
+    Value: !Sub
+      - 'jdbc:postgresql://${Endpoint}:${Port}/${DBName}'
+      - Endpoint: !GetAtt DBInstance.Endpoint.Address
+        Port: !GetAtt DBInstance.Endpoint.Port
+        DBName: !Ref DBName

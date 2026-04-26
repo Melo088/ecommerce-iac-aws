@@ -15,7 +15,7 @@ Parameters:
 
   Owner:
     Type: String
-    Default: Melo088 & Esteban-GV
+    Default: Melo088-Esteban-GV
     Description: Propietarios del stack
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,181 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  ecommerce-iac-aws — Security Groups: ALB, EC2 (Spring Boot), Bastion y RDS.
+  Importa el VPC del stack 01-vpc via export 'ecom-vpc-id'.
+
+# ---------------------------------------------------------------------------
+# Parameters
+# ---------------------------------------------------------------------------
+Parameters:
+  Environment:
+    Type: String
+    Default: prod
+    AllowedValues: [dev, staging, prod]
+    Description: Entorno de despliegue
+
+  Owner:
+    Type: String
+    Default: Melo088 & Esteban-GV
+    Description: Propietarios del stack
+
+# ---------------------------------------------------------------------------
+# Resources
+# ---------------------------------------------------------------------------
+Resources:
+
+  # ---- ALB Security Group --------------------------------------------------
+  # Tráfico público de entrada: HTTP y HTTPS desde cualquier origen.
+  AlbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub 'ecom-sg-alb-${Environment}'
+      GroupDescription: 'ALB: HTTP/HTTPS publico'
+      VpcId: !ImportValue 'ecom-vpc-id'
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: '0.0.0.0/0'
+          Description: 'HTTP desde Internet'
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: '0.0.0.0/0'
+          Description: 'HTTPS desde Internet'
+      SecurityGroupEgress:
+        - IpProtocol: '-1'
+          CidrIp: '0.0.0.0/0'
+          Description: 'Todo el trafico saliente'
+      Tags:
+        - Key: Name
+          Value: !Sub 'ecom-sg-alb-${Environment}'
+        - Key: Project
+          Value: ecommerce-iac-aws
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Owner
+          Value: !Ref Owner
+
+  # ---- Bastion Security Group ----------------------------------------------
+  # SSH desde cualquier IP. Para restringir, reemplazar 0.0.0.0/0
+  # por la IP/rango del administrador.
+  BastionSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub 'ecom-sg-bastion-${Environment}'
+      GroupDescription: 'Bastion: SSH publico'
+      VpcId: !ImportValue 'ecom-vpc-id'
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: '0.0.0.0/0'
+          Description: 'SSH desde Internet'
+      SecurityGroupEgress:
+        - IpProtocol: '-1'
+          CidrIp: '0.0.0.0/0'
+          Description: 'Todo el trafico saliente'
+      Tags:
+        - Key: Name
+          Value: !Sub 'ecom-sg-bastion-${Environment}'
+        - Key: Project
+          Value: ecommerce-iac-aws
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Owner
+          Value: !Ref Owner
+
+  # ---- EC2 Security Group --------------------------------------------------
+  # Puerto 8080 exclusivamente desde el ALB; SSH exclusivamente desde Bastion.
+  Ec2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub 'ecom-sg-ec2-${Environment}'
+      GroupDescription: 'EC2 Spring Boot: 8080 desde ALB, SSH desde Bastion'
+      VpcId: !ImportValue 'ecom-vpc-id'
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          SourceSecurityGroupId: !Ref AlbSecurityGroup
+          Description: 'Spring Boot desde ALB'
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          SourceSecurityGroupId: !Ref BastionSecurityGroup
+          Description: 'SSH desde Bastion'
+      SecurityGroupEgress:
+        - IpProtocol: '-1'
+          CidrIp: '0.0.0.0/0'
+          Description: 'Todo el trafico saliente (actualizaciones, RDS, S3)'
+      Tags:
+        - Key: Name
+          Value: !Sub 'ecom-sg-ec2-${Environment}'
+        - Key: Project
+          Value: ecommerce-iac-aws
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Owner
+          Value: !Ref Owner
+
+  # ---- RDS Security Group --------------------------------------------------
+  # PostgreSQL 5432 desde las instancias EC2 y desde el Bastion
+  # (permite queries directas de administración desde el host de salto).
+  RdsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub 'ecom-sg-rds-${Environment}'
+      GroupDescription: 'RDS PostgreSQL: 5432 desde EC2 y Bastion'
+      VpcId: !ImportValue 'ecom-vpc-id'
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref Ec2SecurityGroup
+          Description: 'PostgreSQL desde EC2 (app)'
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref BastionSecurityGroup
+          Description: 'PostgreSQL desde Bastion (administracion)'
+      SecurityGroupEgress:
+        - IpProtocol: '-1'
+          CidrIp: '0.0.0.0/0'
+          Description: 'Todo el trafico saliente'
+      Tags:
+        - Key: Name
+          Value: !Sub 'ecom-sg-rds-${Environment}'
+        - Key: Project
+          Value: ecommerce-iac-aws
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Owner
+          Value: !Ref Owner
+
+# ---------------------------------------------------------------------------
+# Outputs — exportados para stacks dependientes (ALB, ASG, RDS)
+# ---------------------------------------------------------------------------
+Outputs:
+  AlbSecurityGroupId:
+    Description: ID del Security Group del ALB
+    Value: !Ref AlbSecurityGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-AlbSgId'
+
+  BastionSecurityGroupId:
+    Description: ID del Security Group del Bastion
+    Value: !Ref BastionSecurityGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-BastionSgId'
+
+  Ec2SecurityGroupId:
+    Description: ID del Security Group de las instancias EC2
+    Value: !Ref Ec2SecurityGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-Ec2SgId'
+
+  RdsSecurityGroupId:
+    Description: ID del Security Group de RDS
+    Value: !Ref RdsSecurityGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-RdsSgId'

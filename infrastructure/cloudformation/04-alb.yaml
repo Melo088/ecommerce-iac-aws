@@ -1,0 +1,160 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  ecommerce-iac-aws — Application Load Balancer (Internet-facing), Target Group
+  (puerto 8080 / health check en /api/v1/health) y Listener HTTP:80.
+  Importa subnets públicas de 01-vpc y el ALB SG de 02-security-groups.
+
+# ---------------------------------------------------------------------------
+# Parameters
+# ---------------------------------------------------------------------------
+Parameters:
+  Environment:
+    Type: String
+    Default: prod
+    AllowedValues: [dev, staging, prod]
+    Description: Entorno de despliegue
+
+  Owner:
+    Type: String
+    Default: Melo088-Esteban-GV
+    Description: Propietarios del stack
+
+  VpcStackName:
+    Type: String
+    Default: ecom-vpc-prod
+    Description: >
+      Nombre del stack 01-vpc desplegado. Usado para importar
+      PublicSubnetIds (lista separada por comas).
+
+  SgStackName:
+    Type: String
+    Default: ecom-sg-prod
+    Description: >
+      Nombre del stack 02-security-groups desplegado. Usado para
+      importar AlbSgId.
+
+# ---------------------------------------------------------------------------
+# Resources
+# ---------------------------------------------------------------------------
+Resources:
+
+  # ---- Application Load Balancer -------------------------------------------
+  # Internet-facing: desplegado en subredes públicas para recibir tráfico
+  # externo. El SG solo permite 80 y 443.
+  ApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub 'ecom-alb-${Environment}'
+      Type: application
+      Scheme: internet-facing
+      IpAddressType: ipv4
+      Subnets: !Split
+        - ','
+        - !ImportValue
+          Fn::Sub: '${VpcStackName}-PublicSubnetIds'
+      SecurityGroups:
+        - !ImportValue
+          Fn::Sub: '${SgStackName}-AlbSgId'
+      LoadBalancerAttributes:
+        - Key: idle_timeout.timeout_seconds
+          Value: '60'
+        - Key: routing.http2.enabled
+          Value: 'true'
+      Tags:
+        - Key: Name
+          Value: !Sub 'ecom-alb-${Environment}'
+        - Key: Project
+          Value: ecommerce-iac-aws
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Owner
+          Value: !Ref Owner
+
+  # ---- Target Group --------------------------------------------------------
+  # TargetType 'instance': las instancias del ASG se registran por ID.
+  # Health check en /api/v1/health con código esperado 200.
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub 'ecom-tg-${Environment}'
+      Protocol: HTTP
+      Port: 8080
+      TargetType: instance
+      VpcId: !ImportValue 'ecom-vpc-id'
+      HealthCheckEnabled: true
+      HealthCheckProtocol: HTTP
+      HealthCheckPort: traffic-port
+      HealthCheckPath: /api/v1/health
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher:
+        HttpCode: '200'
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: '30'
+        - Key: stickiness.enabled
+          Value: 'false'
+      Tags:
+        - Key: Name
+          Value: !Sub 'ecom-tg-${Environment}'
+        - Key: Project
+          Value: ecommerce-iac-aws
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Owner
+          Value: !Ref Owner
+
+  # ---- HTTP Listener (puerto 80) -------------------------------------------
+  # Reenvía todo el tráfico al Target Group. Para producción real se añadiría
+  # un listener HTTPS:443 con certificado ACM y redirect 80→443.
+  HttpListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Protocol: HTTP
+      Port: 80
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+
+# ---------------------------------------------------------------------------
+# Outputs — exportados para stacks dependientes (ASG, CloudWatch, frontend)
+# ---------------------------------------------------------------------------
+Outputs:
+  AlbArn:
+    Description: ARN del Application Load Balancer
+    Value: !Ref ApplicationLoadBalancer
+    Export:
+      Name: !Sub '${AWS::StackName}-AlbArn'
+
+  AlbDnsName:
+    Description: DNS Name del ALB (endpoint para el frontend)
+    Value: !GetAtt ApplicationLoadBalancer.DNSName
+    Export:
+      Name: !Sub '${AWS::StackName}-AlbDnsName'
+
+  AlbFullName:
+    Description: Full name del ALB (usado en métricas de CloudWatch)
+    Value: !GetAtt ApplicationLoadBalancer.LoadBalancerFullName
+    Export:
+      Name: !Sub '${AWS::StackName}-AlbFullName'
+
+  TargetGroupArn:
+    Description: ARN del Target Group (para asociar al ASG)
+    Value: !Ref TargetGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-TargetGroupArn'
+
+  TargetGroupFullName:
+    Description: Full name del Target Group (usado en métricas de CloudWatch)
+    Value: !GetAtt TargetGroup.TargetGroupFullName
+    Export:
+      Name: !Sub '${AWS::StackName}-TargetGroupFullName'
+
+  HttpListenerArn:
+    Description: ARN del Listener HTTP:80
+    Value: !Ref HttpListener
+    Export:
+      Name: !Sub '${AWS::StackName}-HttpListenerArn'

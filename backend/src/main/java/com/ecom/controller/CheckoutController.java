@@ -1,9 +1,8 @@
 package com.ecom.controller;
 
-import com.ecom.dto.CheckoutRequest;
 import com.ecom.dto.CheckoutResponse;
 import com.ecom.service.CheckoutService;
-import jakarta.validation.Valid;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -17,7 +16,8 @@ public class CheckoutController {
     }
 
     @PostMapping
-    public CheckoutResponse checkout(@Valid @RequestBody CheckoutRequest request) {
-        return checkoutService.checkout(request);
+    public CheckoutResponse checkout(Authentication authentication) {
+        Long userId = (Long) authentication.getPrincipal();
+        return checkoutService.checkout(userId);
     }
 }

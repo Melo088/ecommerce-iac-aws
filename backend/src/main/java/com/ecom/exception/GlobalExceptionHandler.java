@@ -49,4 +49,14 @@ public class GlobalExceptionHandler {
                 "timestamp", LocalDateTime.now().toString()
         ));
     }
+
+    @ExceptionHandler(UnauthorizedException.class)
+    public ResponseEntity<Map<String, Object>> handleUnauthorized(UnauthorizedException ex) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
+                "status", 401,
+                "error", "Unauthorized",
+                "message", ex.getMessage(),
+                "timestamp", LocalDateTime.now().toString()
+        ));
+    }
 }

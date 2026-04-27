@@ -1,7 +1,6 @@
 package com.ecom.service.impl;
 
 import com.ecom.dto.CartItemResponse;
-import com.ecom.dto.CheckoutRequest;
 import com.ecom.dto.CheckoutResponse;
 import com.ecom.exception.ResourceNotFoundException;
 import com.ecom.repository.CartItemRepository;
@@ -32,12 +31,12 @@ public class CheckoutServiceImpl implements CheckoutService {
 
     @Override
     @Transactional
-    public CheckoutResponse checkout(CheckoutRequest request) {
-        if (!userRepository.existsById(request.userId())) {
-            throw new ResourceNotFoundException("Usuario no encontrado: " + request.userId());
+    public CheckoutResponse checkout(Long userId) {
+        if (!userRepository.existsById(userId)) {
+            throw new ResourceNotFoundException("Usuario no encontrado: " + userId);
         }
 
-        List<CartItemResponse> items = cartService.getCart(request.userId());
+        List<CartItemResponse> items = cartService.getCart(userId);
         if (items.isEmpty()) {
             throw new IllegalStateException("El carrito está vacío");
         }
@@ -46,8 +45,7 @@ public class CheckoutServiceImpl implements CheckoutService {
                 .map(item -> item.price().multiply(BigDecimal.valueOf(item.quantity())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        // Pago simulado — en producción integrar con un PSP (Stripe, PayPal, etc.)
-        cartItemRepository.deleteByUserId(request.userId());
+        cartItemRepository.deleteByUserId(userId);
 
         return new CheckoutResponse(
                 UUID.randomUUID().toString(),

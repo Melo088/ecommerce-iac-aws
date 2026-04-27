@@ -40,9 +40,9 @@ public class CartServiceImpl implements CartService {
     }
 
     @Override
-    public CartItemResponse addItem(CartItemRequest request) {
-        User user = userRepository.findById(request.userId())
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado: " + request.userId()));
+    public CartItemResponse addItem(Long userId, CartItemRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado: " + userId));
         Product product = productRepository.findById(request.productId())
                 .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado: " + request.productId()));
 

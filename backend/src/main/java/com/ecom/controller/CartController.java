@@ -5,6 +5,7 @@ import com.ecom.dto.CartItemResponse;
 import com.ecom.service.CartService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -19,15 +20,18 @@ public class CartController {
         this.cartService = cartService;
     }
 
-    @GetMapping("/{userId}")
-    public List<CartItemResponse> getCart(@PathVariable Long userId) {
+    @GetMapping
+    public List<CartItemResponse> getCart(Authentication authentication) {
+        Long userId = (Long) authentication.getPrincipal();
         return cartService.getCart(userId);
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public CartItemResponse addItem(@Valid @RequestBody CartItemRequest request) {
-        return cartService.addItem(request);
+    public CartItemResponse addItem(Authentication authentication,
+                                    @Valid @RequestBody CartItemRequest request) {
+        Long userId = (Long) authentication.getPrincipal();
+        return cartService.addItem(userId, request);
     }
 
     @DeleteMapping("/{id}")

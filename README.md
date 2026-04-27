@@ -156,6 +156,158 @@ y espera a que cada stack complete antes de continuar.
 
 ---
 
+## Arquitectura del Backend
+
+El backend sigue una **arquitectura en capas** estricta donde cada capa solo conoce a la inmediatamente inferior. Las entidades JPA nunca salen de la capa de servicio — la capa web solo maneja DTOs.
+
+```
+HTTP request
+     │
+     ▼
+┌─────────────┐   recibe DTOs (@Valid)   devuelve DTOs
+│ Controller  │ ──────────────────────────────────────►  HTTP response
+└──────┬──────┘
+       │ llama a interface
+       ▼
+┌─────────────┐   lógica de negocio, mapeo entidad ↔ DTO
+│   Service   │
+└──────┬──────┘
+       │ llama a interface
+       ▼
+┌─────────────┐   consultas JPA / SQL
+│ Repository  │
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐   tablas PostgreSQL (o H2 en local)
+│    Model    │
+└─────────────┘
+```
+
+### Controller (`com.ecom.controller`)
+
+Capa web. Recibe requests HTTP, valida el body con `@Valid` y delega al service. No contiene lógica de negocio ni accede a repositories directamente.
+
+| Clase | Responsabilidad |
+|---|---|
+| `HealthController` | Expone `GET /api/v1/health` para el health check del ALB |
+| `ProductController` | CRUD completo de productos |
+| `CartController` | Gestión del carrito de compras por usuario |
+| `UserController` | Registro y consulta de usuarios |
+| `CheckoutController` | Proceso de pago (simulado) |
+
+### DTO (`com.ecom.dto`)
+
+Objetos de transferencia de datos. Implementados como **Java records** — inmutables y sin boilerplate. Los `*Request` llevan anotaciones de validación (`@NotNull`, `@NotBlank`, `@Min`, `@Email`, etc.); los `*Response` exponen solo los campos seguros (p. ej. `UserResponse` omite `passwordHash`).
+
+| Clase | Uso |
+|---|---|
+| `ProductRequest` | Body de POST/PUT para productos |
+| `ProductResponse` | Respuesta de todos los endpoints de productos |
+| `CartItemRequest` | Body de POST para añadir ítem al carrito |
+| `CartItemResponse` | Respuesta con datos del ítem y del producto anidado |
+| `UserRequest` | Body de registro (`email`, `password`, `name`) |
+| `UserResponse` | Respuesta sin `passwordHash` |
+| `CheckoutRequest` | Body de POST checkout (`userId`) |
+| `CheckoutResponse` | `orderId` (UUID), `total`, lista de ítems, mensaje |
+
+### Service (`com.ecom.service` + `service/impl`)
+
+Lógica de negocio. Cada dominio define una **interface** y una **implementación** (`*ServiceImpl`) anotada con `@Service`. Es la única capa que accede a los repositories y que conoce las entidades JPA.
+
+| Interface | Implementación | Responsabilidad |
+|---|---|---|
+| `ProductService` | `ProductServiceImpl` | CRUD de productos, mapeo `Product ↔ ProductResponse` |
+| `CartService` | `CartServiceImpl` | Gestión del carrito; resuelve usuario y producto antes de persistir |
+| `UserService` | `UserServiceImpl` | Registro de usuarios (almacena `passwordHash`) y consulta por ID |
+| `CheckoutService` | `CheckoutServiceImpl` | Calcula el total, limpia el carrito (`@Transactional`) y genera un `orderId` |
+
+### Repository (`com.ecom.repository`)
+
+Acceso a datos. Interfaces que extienden `JpaRepository` — Spring Data JPA genera la implementación en tiempo de ejecución. No se modificaron durante el refactor.
+
+| Clase | Tabla | Métodos destacados |
+|---|---|---|
+| `ProductRepository` | `products` | `findByStockGreaterThan(int)` |
+| `CartItemRepository` | `cart_items` | `findByUserId(Long)`, `deleteByUserId(Long)` |
+| `UserRepository` | `users` | `findByEmail(String)` |
+
+### Model (`com.ecom.model`)
+
+Entidades JPA mapeadas a tablas PostgreSQL. Anotadas con `@Entity`. No se modificaron durante el refactor.
+
+| Clase | Tabla | Relaciones |
+|---|---|---|
+| `Product` | `products` | — |
+| `User` | `users` | — |
+| `CartItem` | `cart_items` | `@ManyToOne` a `User` y `Product` |
+
+### Exception (`com.ecom.exception`)
+
+Manejo centralizado de errores.
+
+| Clase | Descripción |
+|---|---|
+| `ResourceNotFoundException` | `RuntimeException` → HTTP 404 cuando no se encuentra un recurso |
+| `GlobalExceptionHandler` | `@RestControllerAdvice` que captura: `ResourceNotFoundException` (404), `MethodArgumentNotValidException` (400 con mapa de campos), `IllegalStateException` (400) |
+
+---
+
+## Endpoints de la API
+
+Base path: `/api/v1` · Puerto: `8080`
+
+### Health
+
+| Método | Path | Descripción |
+|---|---|---|
+| `GET` | `/api/v1/health` | Health check del ALB — devuelve `{"status":"UP"}` |
+
+### Productos
+
+| Método | Path | Descripción |
+|---|---|---|
+| `GET` | `/api/v1/products` | Lista todos los productos |
+| `GET` | `/api/v1/products/{id}` | Obtiene un producto por ID (404 si no existe) |
+| `POST` | `/api/v1/products` | Crea un producto; body: `ProductRequest` validado |
+| `PUT` | `/api/v1/products/{id}` | Actualiza un producto existente; body: `ProductRequest` validado |
+| `DELETE` | `/api/v1/products/{id}` | Elimina un producto (204 si ok, 404 si no existe) |
+
+### Carrito
+
+| Método | Path | Descripción |
+|---|---|---|
+| `GET` | `/api/v1/cart/{userId}` | Devuelve los ítems del carrito del usuario (404 si el usuario no existe) |
+| `POST` | `/api/v1/cart` | Añade un ítem al carrito; body: `CartItemRequest` con `userId`, `productId`, `quantity` |
+| `DELETE` | `/api/v1/cart/{id}` | Elimina un ítem del carrito por su ID (204 si ok, 404 si no existe) |
+
+### Usuarios
+
+| Método | Path | Descripción |
+|---|---|---|
+| `POST` | `/api/v1/users/register` | Registra un nuevo usuario; body: `UserRequest` con `email`, `password`, `name` |
+| `GET` | `/api/v1/users/{id}` | Obtiene los datos públicos de un usuario (sin `passwordHash`) |
+
+### Checkout
+
+| Método | Path | Descripción |
+|---|---|---|
+| `POST` | `/api/v1/checkout` | Procesa el pago simulado: calcula el total, vacía el carrito y devuelve `orderId`, `total` e ítems |
+
+---
+
+## Desarrollo local (sin RDS)
+
+```bash
+cd backend
+./mvnw spring-boot:run -Dspring-boot.run.profiles=local
+```
+
+Usa H2 en memoria (`create-drop`) — la base de datos se recrea en cada arranque.
+Consola H2 disponible en `http://localhost:8080/h2-console` (JDBC URL: `jdbc:h2:mem:ecomdb`, usuario: `sa`, password: vacío).
+
+---
+
 ## Conexión a las instancias
 
 ### Bastion Host (SSH directo)

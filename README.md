@@ -296,15 +296,148 @@ Base path: `/api/v1` · Puerto: `8080`
 
 ---
 
-## Desarrollo local (sin RDS)
+## Desarrollo local — Backend
+
+**Requisitos:** Java 21, Maven 3.9+
 
 ```bash
 cd backend
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=local
 ```
 
-Usa H2 en memoria (`create-drop`) — la base de datos se recrea en cada arranque.
-Consola H2 disponible en `http://localhost:8080/h2-console` (JDBC URL: `jdbc:h2:mem:ecomdb`, usuario: `sa`, password: vacío).
+Arranca con perfil `local`, que sustituye PostgreSQL por **H2 en memoria** (`ddl-auto=create-drop`).
+Al iniciar, Spring Boot ejecuta `src/main/resources/data.sql` automáticamente e inserta 6 productos de prueba (ropa y tecnología).
+
+Consola H2 disponible en `http://localhost:8080/h2-console`:
+
+| Campo | Valor |
+|---|---|
+| JDBC URL | `jdbc:h2:mem:ecomdb` |
+| Usuario | `sa` |
+| Password | _(vacío)_ |
+
+### Endpoints disponibles
+
+#### Health
+
+| Método | Path | JWT |
+|---|---|---|
+| `GET` | `/api/v1/health` | No |
+
+#### Autenticación
+
+| Método | Path | JWT |
+|---|---|---|
+| `POST` | `/api/v1/auth/login` | No |
+
+#### Usuarios
+
+| Método | Path | JWT |
+|---|---|---|
+| `POST` | `/api/v1/users/register` | No |
+| `GET` | `/api/v1/users/{id}` | Sí |
+
+#### Productos
+
+| Método | Path | JWT |
+|---|---|---|
+| `GET` | `/api/v1/products` | No |
+| `GET` | `/api/v1/products/{id}` | No |
+| `POST` | `/api/v1/products` | Sí |
+| `PUT` | `/api/v1/products/{id}` | Sí |
+| `DELETE` | `/api/v1/products/{id}` | Sí |
+
+#### Carrito
+
+| Método | Path | JWT |
+|---|---|---|
+| `GET` | `/api/v1/cart` | Sí |
+| `POST` | `/api/v1/cart` | Sí |
+| `DELETE` | `/api/v1/cart/{productId}` | Sí |
+
+#### Checkout
+
+| Método | Path | JWT |
+|---|---|---|
+| `POST` | `/api/v1/checkout` | Sí |
+
+---
+
+## Desarrollo local — Frontend
+
+**Requisitos:** Node.js 20+
+
+```bash
+cd frontend
+
+# 1. Crear el archivo de entorno
+echo "VITE_API_URL=http://localhost:8080" > .env
+
+# 2. Instalar dependencias y arrancar
+npm install && npm run dev
+```
+
+El servidor de desarrollo queda en `http://localhost:5173`.
+
+### Rutas disponibles
+
+| Ruta | Descripción | Requiere sesión |
+|---|---|---|
+| `/` | Catálogo de productos (grid de cards) | No |
+| `/login` | Formulario de inicio de sesión | No |
+| `/register` | Formulario de registro de usuario | No |
+| `/cart` | Carrito de compras con totales y botón Pagar | Sí (redirige a `/login`) |
+| `/checkout` | Confirmación del pago con `orderId` y total | Sí |
+
+> Si el backend no está corriendo, el catálogo muestra un mensaje de error y las acciones autenticadas fallan con alerta.
+
+---
+
+## Despliegue del backend en AWS
+
+### 1. Compilar el JAR
+
+```bash
+cd backend
+./mvnw clean package -DskipTests
+# Genera: target/ecom-backend-*.jar
+```
+
+### 2. Subir el JAR a S3
+
+```bash
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+BUCKET="ecom-artifacts-prod-${ACCOUNT_ID}"
+JAR=$(ls backend/target/ecom-backend-*.jar)
+
+aws s3 cp "$JAR" "s3://${BUCKET}/app/ecom-backend.jar"
+```
+
+### 3. Rolling update del ASG (terminate & replace)
+
+Las instancias del ASG descargan el JAR de S3 al arrancar via `user-data.sh`.
+Para forzar el reemplazo de la instancia activa sin modificar el ASG:
+
+```bash
+# Obtener el ID de la instancia activa
+INSTANCE_ID=$(aws autoscaling describe-auto-scaling-groups \
+  --auto-scaling-group-names ecom-asg-prod \
+  --query 'AutoScalingGroups[0].Instances[0].InstanceId' \
+  --output text)
+
+# Terminar la instancia — el ASG lanza una nueva automáticamente
+aws autoscaling terminate-instance-in-auto-scaling-group \
+  --instance-id "$INSTANCE_ID" \
+  --no-should-decrement-desired-capacity
+```
+
+La nueva instancia arranca, descarga `ecom-backend.jar` de S3 y queda registrada en el Target Group del ALB en ~2 minutos.
+
+> Para múltiples instancias, repite el terminate una a una y espera a que el Target Group marque cada nueva instancia como `healthy` antes de continuar.
+
+### Variables de entorno
+
+Las variables de entorno de la aplicación (`SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`, `JWT_SECRET`) **no se configuran manualmente** en la instancia. CloudFormation las inyecta en el script `user-data.sh` del Launch Template a partir de los parámetros del stack, y el script las escribe en `/etc/ecom/env` antes de arrancar el servicio.
 
 ---
 

@@ -69,9 +69,9 @@ Los stacks se despliegan en orden numérico; cada uno exporta outputs que los si
 
 ---
 
-## Credenciales del sandbox (AWS Academy)
+## Gestión de sesión AWS Academy
 
-Las credenciales del sandbox expiran cada ~4 horas. Para renovarlas ejecuta:
+Las credenciales del sandbox **expiran cada 2 horas**. Para renovarlas:
 
 ```bash
 source infrastructure/scripts/set-aws-session.sh
@@ -81,27 +81,78 @@ El script pide `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` y `AWS_SESSION_TOKEN
 (cópialos desde el panel **AWS Details** de AWS Academy) y los exporta en la sesión
 actual. Al final verifica la identidad con `aws sts get-caller-identity`.
 
-> El script debe ejecutarse con `source` (no `bash`) para que las variables queden
-> disponibles en el shell actual.
+> Usa siempre `source` (no `bash`) para que las variables queden en el shell actual.
+> Si un deploy falla con `ExpiredTokenException`, renueva las credenciales y reintenta.
 
 ---
 
-## Redespliegue completo
+## Por qué upload-templates.sh
+
+CloudFormation requiere que los templates de nested stacks estén en S3 —
+no puede leer archivos locales cuando despliegas un stack raíz con stacks anidados.
+`upload-templates.sh` resuelve esto en dos pasos:
+
+1. **Bootstrap del bucket**: comprueba si `ecom-artifacts-{env}-{account}` existe.
+   Si no, despliega `00-s3-artifacts.yaml` de forma standalone para crearlo.
+2. **Subida de templates**: copia todos los `.yaml` de `infrastructure/cloudformation/`
+   al prefijo `cloudformation/` del bucket e imprime la URL S3 de cada uno.
+
+Esto separa el bucket de artefactos (prerrequisito) del stack raíz `main.yaml`
+(que orquesta los stacks 01–06), evitando la dependencia circular: el bucket
+debe existir antes de poder subir los templates que lo referencian.
+
+---
+
+## Despliegue
+
+### Forma A — Stack raíz (recomendada)
+
+Despliega toda la infraestructura como un único stack raíz con nested stacks.
+CloudFormation gestiona el orden y las dependencias automáticamente.
+
+```bash
+# 1. Subir templates a S3 (crea el bucket si no existe)
+./infrastructure/scripts/upload-templates.sh
+
+# 2. Obtener datos de la cuenta
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+IAM_PROFILE=$(aws iam list-instance-profiles \
+  --query 'InstanceProfiles[0].InstanceProfileName' --output text)
+
+# 3. Desplegar el stack raíz
+aws cloudformation create-stack \
+  --stack-name ecom-main-prod \
+  --template-url "https://s3.amazonaws.com/ecom-artifacts-prod-${ACCOUNT_ID}/cloudformation/main.yaml" \
+  --parameters \
+      ParameterKey=DBPassword,ParameterValue=<tu-password> \
+      ParameterKey=AlertEmail,ParameterValue=<tu-email> \
+      ParameterKey=IamInstanceProfile,ParameterValue=${IAM_PROFILE} \
+  --region us-east-1
+
+# 4. Esperar a que complete (~15-20 min)
+aws cloudformation wait stack-create-complete \
+  --stack-name ecom-main-prod --region us-east-1
+```
+
+Una vez desplegado, obtén los endpoints:
+
+```bash
+aws cloudformation describe-stacks --stack-name ecom-main-prod \
+  --query 'Stacks[0].Outputs' --output table
+```
+
+### Forma B — Stacks individuales (legacy)
 
 ```bash
 ./infrastructure/scripts/deploy-all.sh
 ```
 
-El script despliega los 6 stacks en orden, esperando a que cada uno complete antes
-de continuar. Antes de correrlo asegúrate de:
+Despliega los 7 stacks en orden secuencial. El script pide `AlertEmail` y
+`DBPassword` al inicio, verifica/crea el key pair `ecom-keypair` automáticamente
+y espera a que cada stack complete antes de continuar.
 
-1. Tener credenciales válidas (`source infrastructure/scripts/set-aws-session.sh`).
-2. Haber subido el JAR al bucket S3:
-   ```bash
-   ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-   aws s3 cp target/ecom-app.jar s3://ecom-artifacts-prod-$ACCOUNT_ID/backend/ecom-app.jar
-   ```
-3. Que el par de claves `ecom-keypair` exista en `us-east-1`.
+> Esta forma existe por razones históricas (permite redesplegar stacks
+> individuales sin tocar el resto). Para despliegues completos usar **Forma A**.
 
 ---
 

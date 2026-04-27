@@ -3,7 +3,9 @@ set -e
 
 echo "=== Desplegando todos los stacks ==="
 
-read -rp "Email para alertas SNS (AlertEmail): " ALERT_EMAIL
+read -rp  "Email para alertas SNS (AlertEmail): " ALERT_EMAIL
+read -rsp "Contraseña RDS (DBPassword):          " DB_PASSWORD
+echo
 
 IAM_PROFILE=$(aws iam list-instance-profiles --query 'InstanceProfiles[0].InstanceProfileName' --output text)
 
@@ -31,7 +33,7 @@ deploy ecom-rds infrastructure/cloudformation/03-rds.yaml \
   --parameters \
     ParameterKey=VpcStackName,ParameterValue=ecom-vpc \
     ParameterKey=SgStackName,ParameterValue=ecom-sg \
-    ParameterKey=DBPassword,ParameterValue=SuperPassword123!
+    ParameterKey=DBPassword,ParameterValue=$DB_PASSWORD
 
 deploy ecom-alb infrastructure/cloudformation/04-alb.yaml \
   --parameters \
@@ -63,7 +65,7 @@ deploy ecom-asg infrastructure/cloudformation/05-autoscaling.yaml \
     ParameterKey=SgStackName,ParameterValue=ecom-sg \
     ParameterKey=RdsStackName,ParameterValue=ecom-rds \
     ParameterKey=AlbStackName,ParameterValue=ecom-alb \
-    ParameterKey=DBPassword,ParameterValue=SuperPassword123! \
+    ParameterKey=DBPassword,ParameterValue=$DB_PASSWORD \
     ParameterKey=IamInstanceProfile,ParameterValue=$IAM_PROFILE
 
 deploy ecom-cw infrastructure/cloudformation/06-cloudwatch.yaml \

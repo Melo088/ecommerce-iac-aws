@@ -42,6 +42,26 @@ Resources:
         - Key: Owner
           Value: !Ref Owner
 
+  ArtifactsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ArtifactsBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowVoclabsGetObject
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:role/AmazonSSMRoleForInstancesQuickSetup'
+            Action: 's3:GetObject'
+            Resource: !Sub '${ArtifactsBucket.Arn}/*'
+          - Sid: AllowVoclabsListBucket
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:role/AmazonSSMRoleForInstancesQuickSetup'
+            Action: 's3:ListBucket'
+            Resource: !GetAtt ArtifactsBucket.Arn
+
 # ---------------------------------------------------------------------------
 # Outputs
 # ---------------------------------------------------------------------------

@@ -1,8 +1,10 @@
 package com.ecom.controller;
 
-import com.ecom.model.Product;
-import com.ecom.repository.ProductRepository;
-import org.springframework.http.ResponseEntity;
+import com.ecom.dto.ProductRequest;
+import com.ecom.dto.ProductResponse;
+import com.ecom.service.ProductService;
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -11,47 +13,36 @@ import java.util.List;
 @RequestMapping("/api/v1/products")
 public class ProductController {
 
-    private final ProductRepository productRepository;
+    private final ProductService productService;
 
-    public ProductController(ProductRepository productRepository) {
-        this.productRepository = productRepository;
+    public ProductController(ProductService productService) {
+        this.productService = productService;
     }
 
     @GetMapping
-    public List<Product> getAll() {
-        return productRepository.findAll();
+    public List<ProductResponse> getAll() {
+        return productService.findAll();
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Product> getById(@PathVariable Long id) {
-        return productRepository.findById(id)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+    public ProductResponse getById(@PathVariable Long id) {
+        return productService.findById(id);
     }
 
     @PostMapping
-    public Product create(@RequestBody Product product) {
-        return productRepository.save(product);
+    @ResponseStatus(HttpStatus.CREATED)
+    public ProductResponse create(@Valid @RequestBody ProductRequest request) {
+        return productService.create(request);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Product> update(@PathVariable Long id, @RequestBody Product updated) {
-        return productRepository.findById(id).map(existing -> {
-            existing.setName(updated.getName());
-            existing.setDescription(updated.getDescription());
-            existing.setPrice(updated.getPrice());
-            existing.setImageUrl(updated.getImageUrl());
-            existing.setStock(updated.getStock());
-            return ResponseEntity.ok(productRepository.save(existing));
-        }).orElse(ResponseEntity.notFound().build());
+    public ProductResponse update(@PathVariable Long id, @Valid @RequestBody ProductRequest request) {
+        return productService.update(id, request);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
-        if (!productRepository.existsById(id)) {
-            return ResponseEntity.notFound().build();
-        }
-        productRepository.deleteById(id);
-        return ResponseEntity.noContent().build();
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable Long id) {
+        productService.delete(id);
     }
 }

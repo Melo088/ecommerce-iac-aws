@@ -43,6 +43,19 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- H2 — base de datos en memoria para el perfil local (sin RDS) -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- Bean Validation (@Valid, @NotNull, @Min, etc.) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
         <!-- Actuator (métricas y health interno) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

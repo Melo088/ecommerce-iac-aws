@@ -55,6 +55,36 @@ for template in "${TEMPLATE_DIR}"/*.yaml; do
 done
 
 # ---------------------------------------------------------------------------
+# Key pair: crear ecom-keypair si no existe en AWS
+# ---------------------------------------------------------------------------
+echo ""
+echo ">>> Verificando key pair ecom-keypair..."
+
+KEY_NAME="ecom-keypair"
+PEM_PATH="${HOME}/.ssh/${KEY_NAME}.pem"
+
+if aws ec2 describe-key-pairs --key-names "$KEY_NAME" --region "$REGION" &>/dev/null; then
+  echo "Key pair '${KEY_NAME}' ya existe en AWS."
+else
+  echo "Key pair no encontrado. Creando '${KEY_NAME}'..."
+
+  # Eliminar archivo local previo para evitar errores de permisos al sobreescribir
+  if [[ -f "$PEM_PATH" ]]; then
+    rm -f "$PEM_PATH"
+    echo "Archivo local previo '${PEM_PATH}' eliminado."
+  fi
+
+  aws ec2 create-key-pair \
+    --key-name "$KEY_NAME" \
+    --query "KeyMaterial" \
+    --output text \
+    --region "$REGION" > "$PEM_PATH"
+
+  chmod 400 "$PEM_PATH"
+  echo "Key pair creado y guardado en '${PEM_PATH}' (permisos 400)."
+fi
+
+# ---------------------------------------------------------------------------
 # Resumen y siguiente paso
 # ---------------------------------------------------------------------------
 echo ""

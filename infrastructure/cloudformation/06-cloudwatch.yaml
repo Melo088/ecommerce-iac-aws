@@ -1,0 +1,281 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  ecommerce-iac-aws — SNS Topic para alertas por email, alarmas CloudWatch
+  (CPU alta/baja en el ASG, errores HTTP 5xx y hosts unhealthy en el ALB)
+  y dashboard de métricas. Importa outputs de ecom-asg-prod y ecom-alb-prod.
+
+# ---------------------------------------------------------------------------
+# Parameters
+# ---------------------------------------------------------------------------
+Parameters:
+  Environment:
+    Type: String
+    Default: prod
+    AllowedValues: [dev, staging, prod]
+    Description: Entorno de despliegue
+
+  Owner:
+    Type: String
+    Default: Melo088-Esteban-GV
+    Description: Propietarios del stack
+
+  AlertEmail:
+    Type: String
+    Description: >
+      Email que recibirá notificaciones de alarmas vía SNS.
+      AWS enviará un mensaje de confirmación; debe aceptarse para activar las alertas.
+
+  AsgStackName:
+    Type: String
+    Default: ecom-asg-prod
+    Description: >
+      Nombre del stack 05-autoscaling desplegado. Se importa AutoScalingGroupName.
+
+  AlbStackName:
+    Type: String
+    Default: ecom-alb-prod
+    Description: >
+      Nombre del stack 04-alb desplegado. Se importan AlbFullName y TargetGroupFullName.
+
+# ---------------------------------------------------------------------------
+# Resources
+# ---------------------------------------------------------------------------
+Resources:
+
+  # ---- SNS Topic y suscripción email ----------------------------------------
+  AlertTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub 'ecom-alerts-${Environment}'
+      DisplayName: !Sub 'eCommerce Alerts (${Environment})'
+      Tags:
+        - Key: Name
+          Value: !Sub 'ecom-alerts-${Environment}'
+        - Key: Project
+          Value: ecommerce-iac-aws
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Owner
+          Value: !Ref Owner
+
+  AlertTopicSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref AlertTopic
+      Protocol: email
+      Endpoint: !Ref AlertEmail
+
+  # ---- Alarma: CPU Alta -------------------------------------------------------
+  # El escalado automático (scale-out) lo gestiona el TargetTracking existente
+  # en 05-autoscaling.yaml. Esta alarma es solo para visibilidad operacional.
+  CpuHighAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'ecom-cpu-high-${Environment}'
+      AlarmDescription: >
+        CPU del ASG >= 70 % durante 2 periodos consecutivos de 5 minutos.
+        Solo notifica; el scale-out lo gestiona TargetTracking (objetivo 50 %).
+      Namespace: AWS/EC2
+      MetricName: CPUUtilization
+      Dimensions:
+        - Name: AutoScalingGroupName
+          Value:
+            Fn::ImportValue: !Sub '${AsgStackName}-AutoScalingGroupName'
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 70
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlertTopic
+
+  # ---- Alarma: CPU Baja -------------------------------------------------------
+  # El scale-in lo gestiona TargetTracking. Esta alarma detecta instancias
+  # sobredimensionadas o períodos de inactividad prolongada.
+  CpuLowAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'ecom-cpu-low-${Environment}'
+      AlarmDescription: >
+        CPU del ASG < 20 % durante 2 periodos consecutivos de 5 minutos.
+        Solo notifica; el scale-in lo gestiona TargetTracking automáticamente.
+      Namespace: AWS/EC2
+      MetricName: CPUUtilization
+      Dimensions:
+        - Name: AutoScalingGroupName
+          Value:
+            Fn::ImportValue: !Sub '${AsgStackName}-AutoScalingGroupName'
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 20
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlertTopic
+
+  # ---- Alarma: Errores HTTP 5xx -----------------------------------------------
+  # HTTPCode_Target_5XX_Count cuenta las respuestas 5xx que los targets devuelven
+  # al ALB. Superar 10 en 5 min indica errores en la app Spring Boot.
+  Alb5xxAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'ecom-alb-5xx-${Environment}'
+      AlarmDescription: >
+        El Target Group registra más de 10 errores HTTP 5xx en un periodo de 5 minutos.
+        Puede indicar excepciones no controladas o fallos de base de datos en la app.
+      Namespace: AWS/ApplicationELB
+      MetricName: HTTPCode_Target_5XX_Count
+      Dimensions:
+        - Name: LoadBalancer
+          Value:
+            Fn::ImportValue: !Sub '${AlbStackName}-AlbFullName'
+        - Name: TargetGroup
+          Value:
+            Fn::ImportValue: !Sub '${AlbStackName}-TargetGroupFullName'
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 10
+      ComparisonOperator: GreaterThanThreshold
+      # Sin datos = sin errores reportados; no se considera alarma.
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlertTopic
+
+  # ---- Alarma: Instancias Unhealthy -------------------------------------------
+  # El ASG reemplaza automáticamente instancias unhealthy (HealthCheckType: ELB),
+  # pero esta alarma notifica para que el equipo investigue la causa raíz.
+  UnhealthyHostsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'ecom-unhealthy-hosts-${Environment}'
+      AlarmDescription: >
+        Al menos 1 instancia unhealthy en el Target Group durante 5 minutos.
+        El ASG la reemplazará automáticamente; investigar causa raíz.
+      Namespace: AWS/ApplicationELB
+      MetricName: UnHealthyHostCount
+      Dimensions:
+        - Name: LoadBalancer
+          Value:
+            Fn::ImportValue: !Sub '${AlbStackName}-AlbFullName'
+        - Name: TargetGroup
+          Value:
+            Fn::ImportValue: !Sub '${AlbStackName}-TargetGroupFullName'
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlertTopic
+
+  # ---- Dashboard de CloudWatch ------------------------------------------------
+  # Fn::Sub (forma larga): el mapa de variables resuelve los ImportValue;
+  # ${AWS::Region} es el pseudo-parámetro de CF, se sustituye automáticamente.
+  AppDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub 'ecom-dashboard-${Environment}'
+      DashboardBody:
+        Fn::Sub:
+          - |
+            {
+              "widgets": [
+                {
+                  "type": "metric",
+                  "x": 0, "y": 0, "width": 12, "height": 6,
+                  "properties": {
+                    "title": "CPU del ASG (%)",
+                    "view": "timeSeries",
+                    "stacked": false,
+                    "metrics": [
+                      ["AWS/EC2", "CPUUtilization", "AutoScalingGroupName", "${AsgName}"]
+                    ],
+                    "period": 300,
+                    "stat": "Average",
+                    "region": "${AWS::Region}",
+                    "annotations": {
+                      "horizontal": [
+                        {"label": "Umbral alto (70%)", "value": 70, "color": "#d62728"},
+                        {"label": "Umbral bajo (20%)", "value": 20, "color": "#ff7f0e"}
+                      ]
+                    }
+                  }
+                },
+                {
+                  "type": "metric",
+                  "x": 12, "y": 0, "width": 12, "height": 6,
+                  "properties": {
+                    "title": "Requests del ALB",
+                    "view": "timeSeries",
+                    "stacked": false,
+                    "metrics": [
+                      ["AWS/ApplicationELB", "RequestCount", "LoadBalancer", "${AlbFullName}"]
+                    ],
+                    "period": 300,
+                    "stat": "Sum",
+                    "region": "${AWS::Region}"
+                  }
+                },
+                {
+                  "type": "metric",
+                  "x": 0, "y": 6, "width": 12, "height": 6,
+                  "properties": {
+                    "title": "Errores HTTP 5xx (Target Group)",
+                    "view": "timeSeries",
+                    "stacked": false,
+                    "metrics": [
+                      ["AWS/ApplicationELB", "HTTPCode_Target_5XX_Count", "LoadBalancer", "${AlbFullName}", "TargetGroup", "${TgFullName}"]
+                    ],
+                    "period": 300,
+                    "stat": "Sum",
+                    "region": "${AWS::Region}",
+                    "annotations": {
+                      "horizontal": [
+                        {"label": "Umbral (10)", "value": 10, "color": "#d62728"}
+                      ]
+                    }
+                  }
+                },
+                {
+                  "type": "metric",
+                  "x": 12, "y": 6, "width": 12, "height": 6,
+                  "properties": {
+                    "title": "Instancias Healthy en Target Group",
+                    "view": "timeSeries",
+                    "stacked": false,
+                    "metrics": [
+                      ["AWS/ApplicationELB", "HealthyHostCount", "LoadBalancer", "${AlbFullName}", "TargetGroup", "${TgFullName}"]
+                    ],
+                    "period": 300,
+                    "stat": "Average",
+                    "region": "${AWS::Region}"
+                  }
+                }
+              ]
+            }
+          - AsgName:
+              Fn::ImportValue: !Sub '${AsgStackName}-AutoScalingGroupName'
+            AlbFullName:
+              Fn::ImportValue: !Sub '${AlbStackName}-AlbFullName'
+            TgFullName:
+              Fn::ImportValue: !Sub '${AlbStackName}-TargetGroupFullName'
+
+# ---------------------------------------------------------------------------
+# Outputs
+# ---------------------------------------------------------------------------
+Outputs:
+  AlertTopicArn:
+    Description: ARN del SNS Topic de alertas (suscripción email)
+    Value: !Ref AlertTopic
+    Export:
+      Name: !Sub '${AWS::StackName}-AlertTopicArn'
+
+  DashboardName:
+    Description: Nombre del dashboard de CloudWatch
+    Value: !Ref AppDashboard
+    Export:
+      Name: !Sub '${AWS::StackName}-DashboardName'

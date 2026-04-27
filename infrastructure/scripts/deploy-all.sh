@@ -3,6 +3,8 @@ set -e
 
 echo "=== Desplegando todos los stacks ==="
 
+read -rp "Email para alertas SNS (AlertEmail): " ALERT_EMAIL
+
 IAM_PROFILE=$(aws iam list-instance-profiles --query 'InstanceProfiles[0].InstanceProfileName' --output text)
 
 deploy() {
@@ -36,6 +38,22 @@ deploy ecom-alb infrastructure/cloudformation/04-alb.yaml \
     ParameterKey=VpcStackName,ParameterValue=ecom-vpc \
     ParameterKey=SgStackName,ParameterValue=ecom-sg
 
+echo ""
+echo ">>> Verificando key pair ecom-keypair"
+if ! aws ec2 describe-key-pairs --key-names ecom-keypair --region us-east-1 &>/dev/null; then
+  echo "Key pair no encontrado. Creando ecom-keypair..."
+  mkdir -p ~/.ssh
+  aws ec2 create-key-pair \
+    --key-name ecom-keypair \
+    --region us-east-1 \
+    --query 'KeyMaterial' \
+    --output text > ~/.ssh/ecom-keypair.pem
+  chmod 400 ~/.ssh/ecom-keypair.pem
+  echo "Key pair creado y guardado en ~/.ssh/ecom-keypair.pem"
+else
+  echo "Key pair ecom-keypair ya existe en AWS."
+fi
+
 deploy ecom-asg infrastructure/cloudformation/05-autoscaling.yaml \
   --parameters \
     ParameterKey=KeyName,ParameterValue=ecom-keypair \
@@ -47,6 +65,12 @@ deploy ecom-asg infrastructure/cloudformation/05-autoscaling.yaml \
     ParameterKey=AlbStackName,ParameterValue=ecom-alb \
     ParameterKey=DBPassword,ParameterValue=SuperPassword123! \
     ParameterKey=IamInstanceProfile,ParameterValue=$IAM_PROFILE
+
+deploy ecom-cw infrastructure/cloudformation/06-cloudwatch.yaml \
+  --parameters \
+    ParameterKey=AsgStackName,ParameterValue=ecom-asg \
+    ParameterKey=AlbStackName,ParameterValue=ecom-alb \
+    ParameterKey=AlertEmail,ParameterValue=$ALERT_EMAIL
 
 echo ""
 echo "=== Todo desplegado ==="

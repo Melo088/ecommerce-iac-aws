@@ -1,0 +1,344 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  ecommerce-iac-aws — Bastion Host (t2.micro + EIP), Launch Template
+  (t2.medium / Amazon Linux 2023 / Spring Boot), Auto Scaling Group
+  (min 1 / max 3) y Target Tracking CPU 50 %.
+
+# ---------------------------------------------------------------------------
+# Parameters
+# ---------------------------------------------------------------------------
+Parameters:
+  Environment:
+    Type: String
+    Default: prod
+    AllowedValues: [dev, staging, prod]
+    Description: Entorno de despliegue
+
+  Owner:
+    Type: String
+    Default: Melo088-Esteban-GV
+    Description: Propietarios del stack
+
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Par de claves EC2 para acceso SSH al Bastion y a las instancias
+
+  IamInstanceProfile:
+    Type: String
+    Default: c203071a5182623l14867405t1w603627521976-SsmRoleInstanceProfile-h1iOPE27zcvu
+    Description: >
+      Instance profile IAM. En el sandbox de AWS Academy usar 'LabInstanceProfile'
+      (ya existe, tiene permisos S3/SSM/CloudWatch sin necesidad de crear roles).
+
+  S3BucketName:
+    Type: String
+    Description: Nombre del bucket S3 que contiene el JAR del backend
+
+  S3JarPath:
+    Type: String
+    Default: backend/ecom-app.jar
+    Description: Ruta del JAR dentro del bucket (ej. backend/ecom-app.jar)
+
+  DBUsername:
+    Type: String
+    Default: ecomadmin
+    Description: Usuario de la base de datos PostgreSQL
+
+  DBPassword:
+    Type: String
+    NoEcho: true
+    MinLength: 8
+    Description: >
+      Contraseña del usuario PostgreSQL. No se muestra en consola ni en Outputs.
+
+  AmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+    Description: >
+      AMI de Amazon Linux 2023. Se resuelve dinámicamente desde SSM en el
+      momento del deploy — siempre obtiene la versión más reciente.
+
+  # ---- Stack name references -----------------------------------------------
+  VpcStackName:
+    Type: String
+    Default: ecom-vpc-prod
+    Description: Nombre del stack 01-vpc (para importar subnets)
+
+  SgStackName:
+    Type: String
+    Default: ecom-sg-prod
+    Description: Nombre del stack 02-security-groups (para importar SG IDs)
+
+  RdsStackName:
+    Type: String
+    Default: ecom-rds-prod
+    Description: Nombre del stack 03-rds (para importar DBEndpoint, DBPort, DBName)
+
+  AlbStackName:
+    Type: String
+    Default: ecom-alb-prod
+    Description: Nombre del stack 04-alb (para importar TargetGroupArn)
+
+# ---------------------------------------------------------------------------
+# Resources
+# ---------------------------------------------------------------------------
+Resources:
+
+  # ==========================================================================
+  # BASTION HOST
+  # ==========================================================================
+
+  BastionHost:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t2.micro
+      ImageId: !Ref AmiId
+      KeyName: !Ref KeyName
+      SubnetId: !ImportValue
+        Fn::Sub: '${VpcStackName}-PublicSubnet1Id'
+      SecurityGroupIds:
+        - !ImportValue
+          Fn::Sub: '${SgStackName}-BastionSgId'
+      IamInstanceProfile: !Ref IamInstanceProfile
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 8
+            VolumeType: gp2
+            Encrypted: false
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          dnf update -y
+          dnf install -y postgresql15
+      Tags:
+        - Key: Name
+          Value: !Sub 'ecom-bastion-${Environment}'
+        - Key: Project
+          Value: ecommerce-iac-aws
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Owner
+          Value: !Ref Owner
+
+  BastionEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub 'ecom-eip-bastion-${Environment}'
+        - Key: Project
+          Value: ecommerce-iac-aws
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Owner
+          Value: !Ref Owner
+
+  BastionEIPAssociation:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      InstanceId: !Ref BastionHost
+      AllocationId: !GetAtt BastionEIP.AllocationId
+
+  # ==========================================================================
+  # LAUNCH TEMPLATE — Spring Boot App
+  # ==========================================================================
+
+  AppLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub 'ecom-lt-${Environment}'
+      LaunchTemplateData:
+        ImageId: !Ref AmiId
+        InstanceType: t2.medium
+        KeyName: !Ref KeyName
+        IamInstanceProfile:
+          Name: !Ref IamInstanceProfile
+        SecurityGroupIds:
+          - !ImportValue
+            Fn::Sub: '${SgStackName}-Ec2SgId'
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs:
+              VolumeSize: 20
+              VolumeType: gp2
+              Encrypted: false
+        # IMDSv2 obligatorio — previene SSRF hacia el servicio de metadata
+        MetadataOptions:
+          HttpTokens: required
+          HttpPutResponseHopLimit: 1
+        UserData:
+          Fn::Base64:
+            # Fn::Sub forma larga: el mapa inyecta los ImportValue; los
+            # parámetros CF (S3BucketName, DBUsername, etc.) se sustituyen
+            # directamente por nombre sin necesidad de incluirlos en el mapa.
+            Fn::Sub:
+              - |
+                #!/bin/bash
+                set -euo pipefail
+
+                # ---- Actualizaciones del sistema ----------------------------
+                dnf update -y
+
+                # ---- Java 21 (Amazon Corretto) ------------------------------
+                dnf install -y java-21-amazon-corretto
+
+                # ---- Directorio y usuario de la app -------------------------
+                useradd -r -s /bin/false ecom || true
+                mkdir -p /opt/ecom-app
+                chown ecom:ecom /opt/ecom-app
+
+                # ---- Descarga del JAR desde S3 ------------------------------
+                aws s3 cp s3://${S3BucketName}/${S3JarPath} /opt/ecom-app/app.jar
+                chown ecom:ecom /opt/ecom-app/app.jar
+                chmod 500 /opt/ecom-app/app.jar
+
+                # ---- Archivo de variables de entorno ------------------------
+                # Heredoc con stop-word entre comillas simples: bash no expande
+                # variables; CF ya sustituyó los valores antes de llegar aquí.
+                # AVISO: credenciales en texto plano — en producción usar
+                # Secrets Manager y remover DBPassword de los parámetros.
+                cat > /etc/ecom-app.env << 'ENVEOF'
+                SPRING_DATASOURCE_URL=jdbc:postgresql://${DBEndpoint}:${DBPort}/${DBName}
+                SPRING_DATASOURCE_USERNAME=${DBUsername}
+                SPRING_DATASOURCE_PASSWORD=${DBPassword}
+                SERVER_PORT=8080
+                MANAGEMENT_ENDPOINTS_WEB_BASE_PATH=/api/v1
+                SPRING_JPA_HIBERNATE_DDL_AUTO=update
+                ENVEOF
+                chmod 600 /etc/ecom-app.env
+                chown ecom:ecom /etc/ecom-app.env
+
+                # ---- Servicio systemd ---------------------------------------
+                cat > /etc/systemd/system/ecom-app.service << 'SVCEOF'
+                [Unit]
+                Description=ecommerce Spring Boot Application
+                After=network.target
+
+                [Service]
+                Type=simple
+                User=ecom
+                EnvironmentFile=/etc/ecom-app.env
+                ExecStart=/usr/bin/java -jar /opt/ecom-app/app.jar
+                Restart=on-failure
+                RestartSec=15
+                StandardOutput=journal
+                StandardError=journal
+                SyslogIdentifier=ecom-app
+
+                [Install]
+                WantedBy=multi-user.target
+                SVCEOF
+
+                systemctl daemon-reload
+                systemctl enable ecom-app
+                systemctl start ecom-app
+              - DBEndpoint: !ImportValue
+                  Fn::Sub: '${RdsStackName}-DBEndpoint'
+                DBPort: !ImportValue
+                  Fn::Sub: '${RdsStackName}-DBPort'
+                DBName: !ImportValue
+                  Fn::Sub: '${RdsStackName}-DBName'
+        # Tags propagados a las instancias y volúmenes que cree el ASG
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: Name
+                Value: !Sub 'ecom-ec2-${Environment}'
+              - Key: Project
+                Value: ecommerce-iac-aws
+              - Key: Environment
+                Value: !Ref Environment
+              - Key: Owner
+                Value: !Ref Owner
+          - ResourceType: volume
+            Tags:
+              - Key: Name
+                Value: !Sub 'ecom-vol-${Environment}'
+              - Key: Project
+                Value: ecommerce-iac-aws
+              - Key: Environment
+                Value: !Ref Environment
+              - Key: Owner
+                Value: !Ref Owner
+
+  # ==========================================================================
+  # AUTO SCALING GROUP
+  # ==========================================================================
+
+  AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName: !Sub 'ecom-asg-${Environment}'
+      MinSize: '1'
+      DesiredCapacity: '1'
+      MaxSize: '3'
+      LaunchTemplate:
+        LaunchTemplateId: !Ref AppLaunchTemplate
+        Version: !GetAtt AppLaunchTemplate.LatestVersionNumber
+      VPCZoneIdentifier:
+        - !ImportValue
+          Fn::Sub: '${VpcStackName}-PrivateSubnet1Id'
+        - !ImportValue
+          Fn::Sub: '${VpcStackName}-PrivateSubnet2Id'
+      TargetGroupARNs:
+        - !ImportValue
+          Fn::Sub: '${AlbStackName}-TargetGroupArn'
+      # ELB health check: el ALB marca la instancia unhealthy si el health
+      # check falla, y el ASG la reemplaza automáticamente.
+      HealthCheckType: ELB
+      HealthCheckGracePeriod: 300
+      Tags:
+        - Key: Name
+          Value: !Sub 'ecom-asg-${Environment}'
+          PropagateAtLaunch: true
+        - Key: Project
+          Value: ecommerce-iac-aws
+          PropagateAtLaunch: true
+        - Key: Environment
+          Value: !Ref Environment
+          PropagateAtLaunch: true
+        - Key: Owner
+          Value: !Ref Owner
+          PropagateAtLaunch: true
+
+  # ==========================================================================
+  # SCALING POLICY — Target Tracking CPU 50 %
+  # ==========================================================================
+
+  # TargetTrackingScaling crea y gestiona automáticamente las alarmas de
+  # CloudWatch para scale-out y scale-in. No se necesitan alarmas adicionales
+  # para el escalado básico.
+  CpuScalingPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AutoScalingGroupName: !Ref AutoScalingGroup
+      PolicyType: TargetTrackingScaling
+      TargetTrackingConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ASGAverageCPUUtilization
+        TargetValue: 50
+        DisableScaleIn: false
+
+# ---------------------------------------------------------------------------
+# Outputs
+# ---------------------------------------------------------------------------
+Outputs:
+  BastionPublicIp:
+    Description: IP pública del Bastion Host (para SSH)
+    Value: !Ref BastionEIP
+    Export:
+      Name: !Sub '${AWS::StackName}-BastionPublicIp'
+
+  AutoScalingGroupName:
+    Description: Nombre del Auto Scaling Group
+    Value: !Ref AutoScalingGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-AutoScalingGroupName'
+
+  LaunchTemplateId:
+    Description: ID del Launch Template de la app
+    Value: !Ref AppLaunchTemplate
+    Export:
+      Name: !Sub '${AWS::StackName}-LaunchTemplateId'

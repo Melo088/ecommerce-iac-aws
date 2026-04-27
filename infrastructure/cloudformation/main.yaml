@@ -1,0 +1,212 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  ecommerce-iac-aws — Stack raíz que orquesta los nested stacks 01-vpc,
+  02-security-groups, 03-rds, 04-alb, 05-autoscaling y 06-cloudwatch.
+
+  PREREQUISITO: ejecutar upload-templates.sh antes de desplegar este stack.
+  El script despliega 00-s3-artifacts (si no existe) y sube todos los templates
+  al bucket S3, resolviendo la dependencia circular de bootstrap.
+
+  NOTA sobre nombres de stacks: los nested stacks reciben nombres generados
+  automáticamente (ej: ecom-main-prod-VpcStack-ABCDEF). Se extrae el nombre
+  real con !Select [1, !Split ['/', !Ref XxxStack]] y se pasa como parámetro
+  VpcStackName/SgStackName/etc. a los stacks que usan !ImportValue.
+
+  NOTA sobre ecom-vpc-id: 01-vpc.yaml exporta con nombre hardcoded 'ecom-vpc-id'
+  (no parametrizado), por lo que 02-sg y 04-alb la importan sin conocer el
+  nombre del stack. Esto funciona correctamente con nested stacks.
+
+# ---------------------------------------------------------------------------
+# Parameters
+# ---------------------------------------------------------------------------
+Parameters:
+  Environment:
+    Type: String
+    Default: prod
+    AllowedValues: [dev, staging, prod]
+    Description: Entorno de despliegue (afecta nombres de recursos y bucket S3)
+
+  Owner:
+    Type: String
+    Default: Melo088-Esteban-GV
+    Description: Propietarios del stack (tag Owner en todos los recursos)
+
+  DBPassword:
+    Type: String
+    NoEcho: true
+    MinLength: 8
+    Description: Contraseña del usuario PostgreSQL (mínimo 8 caracteres)
+
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: ecom-keypair
+    Description: >
+      Par de claves EC2 para SSH al Bastion. Ejecutar upload-templates.sh
+      primero — el script crea el key pair si no existe.
+
+  AlertEmail:
+    Type: String
+    Description: Email que recibirá notificaciones de alarmas vía SNS
+
+  IamInstanceProfile:
+    Type: String
+    Default: LabInstanceProfile
+    Description: >
+      Instance profile IAM para las instancias EC2 del ASG.
+      En AWS Academy obtenerlo con:
+      aws iam list-instance-profiles --query 'InstanceProfiles[0].InstanceProfileName'
+
+# ---------------------------------------------------------------------------
+# Resources — nested stacks en orden de dependencia
+# ---------------------------------------------------------------------------
+Resources:
+
+  # ---- 01: VPC ---------------------------------------------------------------
+  # Sin DependsOn — primer stack, sin dependencias externas.
+  VpcStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub
+        'https://s3.${AWS::Region}.amazonaws.com/ecom-artifacts-${Environment}-${AWS::AccountId}/cloudformation/01-vpc.yaml'
+      Parameters:
+        Environment: !Ref Environment
+        Owner: !Ref Owner
+      Tags:
+        - Key: Project
+          Value: ecommerce-iac-aws
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Owner
+          Value: !Ref Owner
+
+  # ---- 02: Security Groups ---------------------------------------------------
+  # DependsOn explícito porque 02-sg importa 'ecom-vpc-id' usando !ImportValue
+  # hardcoded — CloudFormation no detecta esta dependencia a través de parámetros,
+  # ya que SgStack no referencia !Ref VpcStack en sus propiedades.
+  SgStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: VpcStack
+    Properties:
+      TemplateURL: !Sub
+        'https://s3.${AWS::Region}.amazonaws.com/ecom-artifacts-${Environment}-${AWS::AccountId}/cloudformation/02-security-groups.yaml'
+      Parameters:
+        Environment: !Ref Environment
+        Owner: !Ref Owner
+      Tags:
+        - Key: Project
+          Value: ecommerce-iac-aws
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Owner
+          Value: !Ref Owner
+
+  # ---- 03: RDS PostgreSQL ----------------------------------------------------
+  # !Select [1, !Split ['/', !Ref XxxStack]] extrae el nombre del stack desde
+  # el ARN que devuelve !Ref. Formato ARN:
+  #   arn:aws:cloudformation:region:account:stack/<stack-name>/<uuid>
+  # El índice 1 tras split por '/' es el nombre del stack.
+  # Las referencias !Ref VpcStack y !Ref SgStack crean dependencias implícitas.
+  RdsStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub
+        'https://s3.${AWS::Region}.amazonaws.com/ecom-artifacts-${Environment}-${AWS::AccountId}/cloudformation/03-rds.yaml'
+      Parameters:
+        Environment: !Ref Environment
+        Owner: !Ref Owner
+        VpcStackName: !Select [1, !Split ['/', !Ref VpcStack]]
+        SgStackName: !Select [1, !Split ['/', !Ref SgStack]]
+        DBPassword: !Ref DBPassword
+      Tags:
+        - Key: Project
+          Value: ecommerce-iac-aws
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Owner
+          Value: !Ref Owner
+
+  # ---- 04: Application Load Balancer -----------------------------------------
+  # Puede desplegarse en paralelo con RdsStack (solo depende de VpcStack/SgStack).
+  AlbStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub
+        'https://s3.${AWS::Region}.amazonaws.com/ecom-artifacts-${Environment}-${AWS::AccountId}/cloudformation/04-alb.yaml'
+      Parameters:
+        Environment: !Ref Environment
+        Owner: !Ref Owner
+        VpcStackName: !Select [1, !Split ['/', !Ref VpcStack]]
+        SgStackName: !Select [1, !Split ['/', !Ref SgStack]]
+      Tags:
+        - Key: Project
+          Value: ecommerce-iac-aws
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Owner
+          Value: !Ref Owner
+
+  # ---- 05: Auto Scaling Group + Bastion Host ---------------------------------
+  # Depende de RdsStack (endpoint DB) y AlbStack (TargetGroupArn).
+  # S3BucketName se computa aquí con el mismo patrón que 00-s3-artifacts.yaml:
+  # 'ecom-artifacts-{Environment}-{AccountId}'.
+  AsgStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub
+        'https://s3.${AWS::Region}.amazonaws.com/ecom-artifacts-${Environment}-${AWS::AccountId}/cloudformation/05-autoscaling.yaml'
+      Parameters:
+        Environment: !Ref Environment
+        Owner: !Ref Owner
+        KeyName: !Ref KeyName
+        IamInstanceProfile: !Ref IamInstanceProfile
+        S3BucketName: !Sub 'ecom-artifacts-${Environment}-${AWS::AccountId}'
+        VpcStackName: !Select [1, !Split ['/', !Ref VpcStack]]
+        SgStackName: !Select [1, !Split ['/', !Ref SgStack]]
+        RdsStackName: !Select [1, !Split ['/', !Ref RdsStack]]
+        AlbStackName: !Select [1, !Split ['/', !Ref AlbStack]]
+        DBPassword: !Ref DBPassword
+      Tags:
+        - Key: Project
+          Value: ecommerce-iac-aws
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Owner
+          Value: !Ref Owner
+
+  # ---- 06: CloudWatch alarmas y dashboard ------------------------------------
+  # AsgStack y AlbStack ya están completos cuando llega aquí (dependencias
+  # implícitas por las referencias !Ref en los parámetros).
+  CwStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub
+        'https://s3.${AWS::Region}.amazonaws.com/ecom-artifacts-${Environment}-${AWS::AccountId}/cloudformation/06-cloudwatch.yaml'
+      Parameters:
+        Environment: !Ref Environment
+        Owner: !Ref Owner
+        AlertEmail: !Ref AlertEmail
+        AsgStackName: !Select [1, !Split ['/', !Ref AsgStack]]
+        AlbStackName: !Select [1, !Split ['/', !Ref AlbStack]]
+      Tags:
+        - Key: Project
+          Value: ecommerce-iac-aws
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Owner
+          Value: !Ref Owner
+
+# ---------------------------------------------------------------------------
+# Outputs
+# ---------------------------------------------------------------------------
+Outputs:
+  AlbDnsName:
+    Description: DNS del Application Load Balancer (endpoint público de la app)
+    Value: !GetAtt AlbStack.Outputs.AlbDnsName
+    Export:
+      Name: !Sub '${AWS::StackName}-AlbDnsName'
+
+  BastionPublicIp:
+    Description: IP pública del Bastion Host para acceso SSH
+    Value: !GetAtt AsgStack.Outputs.BastionPublicIp
+    Export:
+      Name: !Sub '${AWS::StackName}-BastionPublicIp'

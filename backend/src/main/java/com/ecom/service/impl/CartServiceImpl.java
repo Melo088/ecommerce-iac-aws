@@ -13,6 +13,7 @@ import com.ecom.service.CartService;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class CartServiceImpl implements CartService {
@@ -46,11 +47,17 @@ public class CartServiceImpl implements CartService {
         Product product = productRepository.findById(request.productId())
                 .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado: " + request.productId()));
 
-        CartItem item = new CartItem();
-        item.setUser(user);
-        item.setProduct(product);
-        item.setQuantity(request.quantity());
+        CartItem item = cartItemRepository
+                .findByUserIdAndProductId(userId, request.productId())
+                .orElseGet(() -> {
+                    CartItem newItem = new CartItem();
+                    newItem.setUser(user);
+                    newItem.setProduct(product);
+                    newItem.setQuantity(0);
+                    return newItem;
+                });
 
+        item.setQuantity(item.getQuantity() + request.quantity());
         return toResponse(cartItemRepository.save(item));
     }
 
@@ -60,6 +67,20 @@ public class CartServiceImpl implements CartService {
             throw new ResourceNotFoundException("Item del carrito no encontrado: " + id);
         }
         cartItemRepository.deleteById(id);
+    }
+
+    @Override
+    public Optional<CartItemResponse> updateItemQuantity(Long itemId, int quantity) {
+        CartItem item = cartItemRepository.findById(itemId)
+                .orElseThrow(() -> new ResourceNotFoundException("Item del carrito no encontrado: " + itemId));
+
+        if (quantity <= 0) {
+            cartItemRepository.deleteById(itemId);
+            return Optional.empty();
+        }
+
+        item.setQuantity(quantity);
+        return Optional.of(toResponse(cartItemRepository.save(item)));
     }
 
     private CartItemResponse toResponse(CartItem item) {

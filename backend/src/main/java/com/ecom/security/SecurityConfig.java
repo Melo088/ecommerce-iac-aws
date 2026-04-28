@@ -33,7 +33,7 @@ public class SecurityConfig {
             "http://localhost:5173",
             "http://ecom-alb*"
         ));
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
         config.setAllowCredentials(true);
 
@@ -54,10 +54,12 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/v1/auth/login").permitAll()
                 .requestMatchers(HttpMethod.GET,  "/api/v1/health").permitAll()
                 .requestMatchers(HttpMethod.GET,    "/api/v1/products").permitAll()
+                .requestMatchers(HttpMethod.GET,    "/api/v1/products/categories").permitAll()
                 .requestMatchers(HttpMethod.GET,    "/api/v1/products/{id}").permitAll()
                 .requestMatchers(HttpMethod.POST,   "/api/v1/products").authenticated()
                 .requestMatchers(HttpMethod.PUT,    "/api/v1/products/{id}").authenticated()
                 .requestMatchers(HttpMethod.DELETE, "/api/v1/products/{id}").authenticated()
+                .requestMatchers(HttpMethod.PATCH,  "/api/v1/cart/{id}/quantity").authenticated()
                 .requestMatchers("/h2-console/**").permitAll()
                 .anyRequest().authenticated()
             )

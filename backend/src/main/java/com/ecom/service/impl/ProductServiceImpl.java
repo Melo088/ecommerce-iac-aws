@@ -21,9 +21,17 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public List<ProductResponse> findAll() {
-        return productRepository.findAll().stream()
-                .map(this::toResponse)
-                .toList();
+        return productRepository.findAll().stream().map(this::toResponse).toList();
+    }
+
+    @Override
+    public List<ProductResponse> findByCategory(String category) {
+        return productRepository.findByCategory(category).stream().map(this::toResponse).toList();
+    }
+
+    @Override
+    public List<String> findCategories() {
+        return productRepository.findDistinctCategories();
     }
 
     @Override
@@ -38,6 +46,7 @@ public class ProductServiceImpl implements ProductService {
         Product product = new Product();
         product.setName(request.name());
         product.setDescription(request.description());
+        product.setCategory(request.category());
         product.setPrice(request.price());
         product.setImageUrl(request.imageUrl());
         product.setStock(request.stock());
@@ -50,6 +59,7 @@ public class ProductServiceImpl implements ProductService {
                 .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado: " + id));
         product.setName(request.name());
         product.setDescription(request.description());
+        product.setCategory(request.category());
         product.setPrice(request.price());
         product.setImageUrl(request.imageUrl());
         product.setStock(request.stock());
@@ -66,7 +76,7 @@ public class ProductServiceImpl implements ProductService {
 
     private ProductResponse toResponse(Product p) {
         return new ProductResponse(
-                p.getId(), p.getName(), p.getDescription(),
+                p.getId(), p.getName(), p.getDescription(), p.getCategory(),
                 p.getPrice(), p.getImageUrl(), p.getStock(), p.getCreatedAt()
         );
     }

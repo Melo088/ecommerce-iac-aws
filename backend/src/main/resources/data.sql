@@ -1,43 +1,49 @@
-INSERT INTO products (name, description, price, stock, image_url) VALUES
+INSERT INTO products (name, description, category, price, stock, image_url) VALUES
 (
-    'Camiseta Algodón Premium',
-    'Camiseta unisex de algodón 100% peinado, corte regular, disponible en tallas XS–XXL. Suave al tacto y resistente al lavado.',
-    24.99,
-    80,
-    'https://picsum.photos/seed/cotton-shirt/640/480'
+    'SG-03',
+    'SHIELD LENS / ACETATE FRAME / FIXED NOSE BRIDGE / UV400 PROTECTION / ONE SIZE',
+    'ACCESSORIES',
+    140.00,
+    60,
+    NULL
 ),
 (
-    'Zapatillas Running Pro',
-    'Zapatillas deportivas con suela de amortiguación EVA y upper de malla transpirable. Ideales para running y entrenamiento diario.',
-    89.99,
+    'BP-02',
+    'BACKPACK / DOUBLE ZIP CLOSURE / ADJUSTABLE PADDED STRAPS / INNER CONCEALED PADDED LAPTOP SLEEVE / 100% NYLON',
+    'ACCESSORIES',
+    40.00,
     45,
-    'https://picsum.photos/seed/running-shoes/640/480'
+    NULL
 ),
 (
-    'Auriculares Bluetooth XB500',
-    'Auriculares inalámbricos over-ear con cancelación activa de ruido, 30 h de batería y codec AAC. Plegables para mayor portabilidad.',
-    129.99,
-    30,
-    'https://picsum.photos/seed/headphones-xb/640/480'
+    'HT-04',
+    'OVERSIZED BEANIE / RIBBED KNIT / FOLDED HEM / UNISEX / ONE SIZE / 100% ACRYLIC',
+    'ACCESSORIES',
+    30.00,
+    80,
+    NULL
 ),
 (
-    'Smartwatch FitTrack 3',
-    'Reloj inteligente con monitor cardíaco, GPS integrado, resistencia al agua IP68 y pantalla AMOLED de 1.4". Compatible con Android e iOS.',
-    199.99,
+    'BG-02',
+    'DUFFLE BAG / DOUBLE ZIP MAIN COMPARTMENT / REMOVABLE SHOULDER STRAP / 50 X 25 X 25 CM / 100% NYLON',
+    'ACCESSORIES',
+    120.00,
     20,
-    'https://picsum.photos/seed/smartwatch-fit/640/480'
+    NULL
 ),
 (
-    'Chaqueta de Cuero Urbana',
-    'Chaqueta de cuero genuino con forro polar interior, cremalleras laterales y bolsillos internos. Diseño slim-fit para uso urbano.',
-    179.99,
-    15,
-    'https://picsum.photos/seed/leather-jacket/640/480'
+    'BT-01',
+    'BELT / SINGLE PRONG BUCKLE / FULL GRAIN LEATHER / 35 MM WIDTH / SIZES 30—40',
+    'ACCESSORIES',
+    60.00,
+    35,
+    NULL
 ),
 (
-    'Teclado Mecánico TKL RGB',
-    'Teclado tenkeyless con switches Cherry MX Red, retroiluminación RGB por tecla y construcción en aluminio anodizado. Conexión USB-C.',
-    109.99,
-    25,
-    'https://picsum.photos/seed/mech-keyboard/640/480'
+    'HT-01',
+    'FITTED CAP / STRUCTURED SIX-PANEL / TONAL EMBROIDERED LOGO / LOW PROFILE / 60% COTTON 40% POLYESTER',
+    'ACCESSORIES',
+    50.00,
+    40,
+    NULL
 );

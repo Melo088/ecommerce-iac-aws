@@ -20,8 +20,13 @@ public class ProductController {
     }
 
     @GetMapping
-    public List<ProductResponse> getAll() {
-        return productService.findAll();
+    public List<ProductResponse> getAll(@RequestParam(required = false) String category) {
+        return category != null ? productService.findByCategory(category) : productService.findAll();
+    }
+
+    @GetMapping("/categories")
+    public List<String> getCategories() {
+        return productService.findCategories();
     }
 
     @GetMapping("/{id}")

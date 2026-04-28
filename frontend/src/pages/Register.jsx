@@ -1,15 +1,16 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import api from '../api/axios'
+import { register } from '../services/authService'
 
 export default function Register() {
   const [form, setForm] = useState({ name: '', email: '', password: '' })
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
 
   function handleChange(e) {
-    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))
+    setForm(p => ({ ...p, [e.target.name]: e.target.value }))
   }
 
   async function handleSubmit(e) {
@@ -17,79 +18,86 @@ export default function Register() {
     setError(null)
     setLoading(true)
     try {
-      await api.post('/api/v1/users/register', form)
+      await register(form.name, form.email, form.password)
       navigate('/login')
     } catch (err) {
-      setError(err.response?.data?.message || 'Error al registrar usuario.')
+      setError(err.response?.data?.message || 'REGISTRATION FAILED')
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <div className="bg-white rounded-xl shadow-md border border-gray-200 w-full max-w-md p-8">
-        <h1 className="text-2xl font-bold text-gray-800 mb-6 text-center">Crear cuenta</h1>
+    <main className="pt-32 min-h-screen flex items-center justify-center px-6 bg-white font-mono">
+      <div className="w-full max-w-sm">
+        <p className="text-xs tracking-[0.2em] mb-12 text-center text-black">CREATE ACCOUNT</p>
 
         {error && (
-          <p className="mb-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-            {error}
-          </p>
+          <p className="text-[10px] tracking-widest text-center mb-8 text-black">{error}</p>
         )}
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-8">
+          {/* Campo NAME */}
+          <div className="border-b border-black pb-2">
             <input
               type="text"
               name="name"
               value={form.name}
               onChange={handleChange}
               required
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-              placeholder="Tu nombre"
+              placeholder="NAME"
+              className="w-full text-xs tracking-widest bg-transparent outline-none placeholder:text-gray-300 uppercase"
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+
+          {/* Campo EMAIL */}
+          <div className="border-b border-black pb-2">
             <input
               type="email"
               name="email"
               value={form.email}
               onChange={handleChange}
               required
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-              placeholder="tu@email.com"
+              placeholder="EMAIL"
+              className="w-full text-xs tracking-widest bg-transparent outline-none placeholder:text-gray-300 uppercase"
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
+
+          {/* Campo PASSWORD con Toggle */}
+          <div className="border-b border-black pb-2 relative flex items-center">
             <input
-              type="password"
+              type={showPassword ? "text" : "password"}
               name="password"
               value={form.password}
               onChange={handleChange}
               required
               minLength={6}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-              placeholder="••••••••"
+              placeholder="PASSWORD"
+              className="w-full text-xs tracking-widest bg-transparent outline-none placeholder:text-gray-300 uppercase"
             />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-0 text-[9px] tracking-tighter text-gray-400 hover:text-black transition-colors"
+            >
+              {showPassword ? 'HIDE' : 'SHOW'}
+            </button>
           </div>
+
           <button
             type="submit"
             disabled={loading}
-            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-medium py-2 rounded-lg transition-colors mt-2"
+            className="text-xs tracking-[0.3em] mt-6 hover:opacity-30 transition-opacity text-center disabled:opacity-30 border border-black py-4"
           >
-            {loading ? 'Registrando...' : 'Registrarse'}
+            {loading ? '...' : 'REGISTER'}
           </button>
         </form>
 
-        <p className="text-sm text-center text-gray-500 mt-5">
-          ¿Ya tienes cuenta?{' '}
-          <Link to="/login" className="text-indigo-600 hover:underline font-medium">
-            Inicia sesión
+        <div className="flex justify-center mt-12">
+          <Link to="/login" className="text-[10px] tracking-widest text-gray-400 hover:text-black transition-colors">
+            ALREADY HAVE AN ACCOUNT
           </Link>
-        </p>
+        </div>
       </div>
     </main>
   )

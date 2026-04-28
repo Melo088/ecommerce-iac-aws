@@ -2,9 +2,11 @@ package com.ecom.controller;
 
 import com.ecom.dto.CartItemRequest;
 import com.ecom.dto.CartItemResponse;
+import com.ecom.dto.UpdateQuantityRequest;
 import com.ecom.service.CartService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
@@ -38,5 +40,14 @@ public class CartController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void removeItem(@PathVariable Long id) {
         cartService.removeItem(id);
+    }
+
+    @PatchMapping("/{id}/quantity")
+    public ResponseEntity<CartItemResponse> updateQuantity(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateQuantityRequest request) {
+        return cartService.updateItemQuantity(id, request.quantity())
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.noContent().build());
     }
 }

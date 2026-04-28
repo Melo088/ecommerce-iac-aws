@@ -1,93 +1,190 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import api from '../api/axios'
 import { useAuth } from '../context/AuthContext'
+import { useCart } from '../context/CartContext'
+import api from '../api/axios'
+
+const LABEL = 'text-xs tracking-widest uppercase mb-1 block'
+const INPUT = 'border border-black w-full p-3 bg-white outline-none text-xs tracking-widest rounded-none'
 
 export default function Cart() {
-  const [items, setItems] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [paying, setPaying] = useState(false)
   const { auth } = useAuth()
+  const { items, cartLoading, increaseQty, decreaseQty, removeItem, reset } = useCart()
   const navigate = useNavigate()
+  const [paying, setPaying] = useState(false)
+  const [form, setForm] = useState({
+    email: '', firstName: '', lastName: '',
+    address: '', city: '', country: 'COLOMBIA',
+    state: '', zip: '', phone: '',
+  })
 
   useEffect(() => {
-    if (!auth) { navigate('/login'); return }
-    api.get('/api/v1/cart')
-      .then((res) => setItems(res.data))
-      .catch(() => setItems([]))
-      .finally(() => setLoading(false))
+    if (!auth) navigate('/login')
   }, [auth, navigate])
 
-  async function handleRemove(productId) {
-    await api.delete(`/api/v1/cart/${productId}`)
-    setItems((prev) => prev.filter((i) => i.productId !== productId))
+  function handleField(e) {
+    setForm(f => ({ ...f, [e.target.name]: e.target.value }))
   }
 
-  async function handleCheckout() {
+  async function handlePlaceOrder() {
     setPaying(true)
     try {
       const { data } = await api.post('/api/v1/checkout')
+      reset()
       navigate('/checkout', { state: { orderId: data.orderId, total: data.total } })
     } catch {
-      alert('Error al procesar el pago.')
+      /* silently fail */
     } finally {
       setPaying(false)
     }
   }
 
-  const total = items.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0)
+  const subtotal = items.reduce((s, i) => s + (Number(i.price) || 0) * i.quantity, 0)
 
-  if (loading) return <p className="text-center mt-12 text-gray-500">Cargando carrito...</p>
+  if (cartLoading) {
+    return (
+      <main className="min-h-screen flex items-center justify-center">
+        <span className="text-xs tracking-widest text-gray-300">LOADING</span>
+      </main>
+    )
+  }
+
+  if (items.length === 0) {
+    return (
+      <main className="min-h-screen flex items-center justify-center">
+        <span className="text-xs tracking-widest text-gray-300">EMPTY</span>
+      </main>
+    )
+  }
 
   return (
-    <main className="max-w-3xl mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold text-gray-800 mb-8">Carrito de compras</h1>
+    <main className="min-h-screen flex items-center justify-center px-16 pt-24 pb-12">
+      <div className="w-full max-w-6xl grid grid-cols-2 gap-24">
 
-      {items.length === 0 ? (
-        <p className="text-gray-500 text-center mt-12">Tu carrito está vacío.</p>
-      ) : (
-        <>
-          <div className="flex flex-col gap-4">
-            {items.map((item) => (
-              <div
-                key={item.productId}
-                className="bg-white border border-gray-200 rounded-xl px-5 py-4 flex items-center justify-between shadow-sm"
-              >
-                <div>
-                  <p className="font-semibold text-gray-800">{item.productName}</p>
-                  <p className="text-sm text-gray-500">
-                    Cantidad: {item.quantity} × ${Number(item.unitPrice).toFixed(2)}
-                  </p>
+        {/* LEFT — Checkout form */}
+        <div>
+          <div className="mb-4">
+            <label className={LABEL}>Email Address</label>
+            <input name="email" type="email" value={form.email} onChange={handleField} className={INPUT} />
+          </div>
+
+          <p className="text-xs tracking-widest uppercase mb-4 mt-6">Shipping Address</p>
+
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className={LABEL}>First Name</label>
+              <input name="firstName" value={form.firstName} onChange={handleField} className={INPUT} />
+            </div>
+            <div>
+              <label className={LABEL}>Last Name</label>
+              <input name="lastName" value={form.lastName} onChange={handleField} className={INPUT} />
+            </div>
+          </div>
+
+          <div className="mb-4">
+            <label className={LABEL}>Address</label>
+            <input name="address" value={form.address} onChange={handleField} className={INPUT} />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className={LABEL}>City</label>
+              <input name="city" value={form.city} onChange={handleField} className={INPUT} />
+            </div>
+            <div>
+              <label className={LABEL}>Country</label>
+              <input name="country" value={form.country} onChange={handleField} className={INPUT} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className={LABEL}>State / Province</label>
+              <input name="state" value={form.state} onChange={handleField} className={INPUT} />
+            </div>
+            <div>
+              <label className={LABEL}>Zip Code</label>
+              <input name="zip" value={form.zip} onChange={handleField} className={INPUT} />
+            </div>
+          </div>
+
+          <div className="mb-4">
+            <label className={LABEL}>Phone Number</label>
+            <input name="phone" value={form.phone} onChange={handleField} className={INPUT} />
+          </div>
+
+          <button
+            onClick={handlePlaceOrder}
+            disabled={paying}
+            className="w-full bg-black text-white py-4 text-xs tracking-widest uppercase mt-8 hover:opacity-70 transition-opacity disabled:opacity-30"
+          >
+            {paying ? '...' : 'Place Order'}
+          </button>
+        </div>
+
+        {/* RIGHT — Order summary */}
+        <div>
+          {items.map(item => {
+            const lineTotal = (Number(item.price) || 0) * item.quantity
+            return (
+              <div key={item.id} className="flex items-center justify-between border-b border-gray-100 py-4 gap-4">
+                <img
+                  src={`/products/${item.productId}/main.png`}
+                  alt={item.productName}
+                  className="w-16 h-16 object-contain bg-gray-50 shrink-0"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs tracking-widest uppercase truncate">{item.productName}</p>
+                  <div className="flex items-center gap-3 mt-2">
+                    <button
+                      onClick={() => decreaseQty(item)}
+                      className="text-xs tracking-widest text-gray-400 hover:text-black transition-colors"
+                    >
+                      −
+                    </button>
+                    <span className="text-xs tracking-widest">{item.quantity}</span>
+                    <button
+                      onClick={() => increaseQty(item)}
+                      className="text-xs tracking-widest text-gray-400 hover:text-black transition-colors"
+                    >
+                      +
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-4">
-                  <p className="font-bold text-indigo-600">
-                    ${(item.unitPrice * item.quantity).toFixed(2)}
-                  </p>
+                <div className="flex flex-col items-end gap-2 shrink-0">
+                  <span className="text-xs tracking-widest">${lineTotal.toFixed(2)}</span>
                   <button
-                    onClick={() => handleRemove(item.productId)}
-                    className="text-xs text-red-500 hover:text-red-700 border border-red-200 hover:border-red-400 px-2 py-1 rounded-md transition-colors"
+                    onClick={() => removeItem(item)}
+                    className="text-[10px] tracking-widest text-gray-300 hover:text-black transition-colors uppercase"
                   >
-                    Eliminar
+                    Remove
                   </button>
                 </div>
               </div>
-            ))}
-          </div>
+            )
+          })}
 
-          <div className="mt-8 flex items-center justify-between border-t border-gray-200 pt-6">
-            <p className="text-lg font-bold text-gray-800">
-              Total: <span className="text-indigo-600">${total.toFixed(2)}</span>
-            </p>
-            <button
-              onClick={handleCheckout}
-              disabled={paying}
-              className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-medium px-6 py-2.5 rounded-lg transition-colors"
-            >
-              {paying ? 'Procesando...' : 'Pagar'}
-            </button>
+          <div className="mt-6 flex flex-col gap-3">
+            <div className="flex justify-between">
+              <span className="text-xs tracking-widest uppercase text-gray-400">Subtotal</span>
+              <span className="text-xs tracking-widest">${subtotal.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-xs tracking-widest uppercase text-gray-400">Shipping</span>
+              <span className="text-xs tracking-widest text-gray-400">Calculated at next step</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-xs tracking-widest uppercase text-gray-400">Taxes</span>
+              <span className="text-xs tracking-widest">$0.00</span>
+            </div>
+            <div className="flex justify-between pt-4 mt-2 border-t border-gray-200">
+              <span className="text-xs tracking-widest uppercase">Total</span>
+              <span className="text-xs tracking-widest">${subtotal.toFixed(2)}</span>
+            </div>
           </div>
-        </>
-      )}
+        </div>
+
+      </div>
     </main>
   )
 }

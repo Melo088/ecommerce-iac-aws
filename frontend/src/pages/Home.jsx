@@ -1,69 +1,80 @@
 import { useEffect, useState } from 'react'
-import api from '../api/axios'
+import { Link, useParams } from 'react-router-dom'
+import { LayoutGroup, motion } from 'framer-motion'
+import { useUI } from '../context/UIContext'
+import { getProducts } from '../services/productService'
+import { getImageUrl } from '../utils/imageUtils'
 
-export default function Home() {
-  const [products, setProducts] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [added, setAdded] = useState({})
-
-  useEffect(() => {
-    api.get('/api/v1/products')
-      .then((res) => setProducts(res.data))
-      .catch(() => setError('No se pudieron cargar los productos.'))
-      .finally(() => setLoading(false))
-  }, [])
-
-  async function handleAddToCart(productId) {
-    try {
-      await api.post('/api/v1/cart', { productId, quantity: 1 })
-      setAdded((prev) => ({ ...prev, [productId]: true }))
-      setTimeout(() => setAdded((prev) => ({ ...prev, [productId]: false })), 1500)
-    } catch {
-      alert('Inicia sesión para agregar al carrito.')
-    }
-  }
-
-  if (loading) return <p className="text-center mt-12 text-gray-500">Cargando productos...</p>
-  if (error)   return <p className="text-center mt-12 text-red-500">{error}</p>
+function ProductCard({ product }) {
+  const [imgError, setImgError] = useState(false)
 
   return (
-    <main className="max-w-6xl mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold text-gray-800 mb-8">Catálogo de Productos</h1>
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-        {products.map((product) => (
-          <div
-            key={product.id}
-            className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow flex flex-col"
-          >
-            {product.imageUrl && (
-              <img
-                src={product.imageUrl}
-                alt={product.name}
-                className="w-full h-48 object-cover rounded-t-xl"
-              />
-            )}
-            <div className="p-4 flex flex-col flex-1">
-              <h2 className="text-gray-800 font-semibold text-base mb-1 line-clamp-2">
-                {product.name}
-              </h2>
-              <p className="text-indigo-600 font-bold text-lg mt-auto mb-4">
-                ${Number(product.price).toFixed(2)}
-              </p>
-              <button
-                onClick={() => handleAddToCart(product.id)}
-                className={`w-full py-2 rounded-lg text-sm font-medium transition-colors ${
-                  added[product.id]
-                    ? 'bg-green-500 text-white'
-                    : 'bg-indigo-600 hover:bg-indigo-700 text-white'
-                }`}
-              >
-                {added[product.id] ? 'Agregado' : 'Agregar al carrito'}
-              </button>
-            </div>
-          </div>
-        ))}
+    <Link to={`/product/${product.id}`} className="block group cursor-pointer">
+      {/* image — no bottom padding so name sits ≤ 8px below */}
+      <div className="aspect-[4/5] flex items-center justify-center px-6 pt-6 pb-0 overflow-hidden">
+        {imgError ? (
+          <div className="w-full h-full bg-[#f0f0f0]" />
+        ) : (
+          <motion.img
+            layoutId={`product-image-${product.id}`}
+            src={getImageUrl(product.id)}
+            alt={product.name}
+            onError={() => setImgError(true)}
+            className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-105"
+          />
+        )}
       </div>
+      {/* name — mt-2 = 8px from image container bottom */}
+      <p className="text-sm tracking-widest text-center mt-2 pb-4 text-black">
+        {product.name}
+      </p>
+    </Link>
+  )
+}
+
+export default function Home() {
+  const { categoryName } = useParams()
+  const { gridDense } = useUI()
+  const [products, setProducts] = useState([])
+  const [loading, setLoading]   = useState(true)
+
+  useEffect(() => {
+    setLoading(true)
+    getProducts(categoryName)
+      .then(setProducts)
+      .catch(() => setProducts([]))
+      .finally(() => setLoading(false))
+  }, [categoryName])
+
+  if (loading) {
+    return (
+      <main className="pt-28 min-h-screen flex items-center justify-center">
+        <span className="text-sm tracking-widest text-gray-300">LOADING</span>
+      </main>
+    )
+  }
+
+  return (
+    <main className="pt-28">
+      <LayoutGroup>
+        <div className={`grid transition-none ${gridDense ? 'grid-cols-6' : 'grid-cols-3'}`}>
+          {products.map(product => (
+            <motion.div
+              key={product.id}
+              layout
+              transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
+            >
+              <ProductCard product={product} />
+            </motion.div>
+          ))}
+        </div>
+      </LayoutGroup>
+
+      {products.length === 0 && (
+        <div className="flex items-center justify-center h-64">
+          <span className="text-sm tracking-widest text-gray-300">NO PRODUCTS</span>
+        </div>
+      )}
     </main>
   )
 }

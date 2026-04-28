@@ -9,6 +9,7 @@ import java.math.BigDecimal;
 public record ProductRequest(
         @NotBlank(message = "El nombre no puede estar vacío") String name,
         String description,
+        @NotBlank(message = "La categoría no puede estar vacía") String category,
         @NotNull(message = "El precio es obligatorio")
         @DecimalMin(value = "0.01", message = "El precio mínimo es 0.01") BigDecimal price,
         String imageUrl,

@@ -1,17 +1,35 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { initMercadoPago, Wallet } from '@mercadopago/sdk-react'
 import { useAuth } from '../context/AuthContext'
 import { useCart } from '../context/CartContext'
 import api from '../api/axios'
 
+initMercadoPago(import.meta.env.VITE_MP_PUBLIC_KEY)
+
 const LABEL = 'text-xs tracking-widest uppercase mb-1 block'
 const INPUT = 'border border-black w-full p-3 bg-white outline-none text-xs tracking-widest rounded-none'
 
+const WALLET_CUSTOMIZATION = {
+  visual: {
+    buttonBackground: 'black',
+    borderRadius: '0px',
+    valuePropColor: 'white',
+    verticalPadding: '16px',
+    horizontalPadding: '0px',
+  },
+  texts: {
+    action: 'buy',
+    valueProp: 'smart_option',
+  },
+}
+
 export default function Cart() {
   const { auth } = useAuth()
-  const { items, cartLoading, increaseQty, decreaseQty, removeItem, reset } = useCart()
+  const { items, cartLoading, increaseQty, decreaseQty, removeItem } = useCart()
   const navigate = useNavigate()
-  const [paying, setPaying] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [preferenceId, setPreferenceId] = useState(null)
   const [form, setForm] = useState({
     email: '', firstName: '', lastName: '',
     address: '', city: '', country: 'COLOMBIA',
@@ -26,16 +44,15 @@ export default function Cart() {
     setForm(f => ({ ...f, [e.target.name]: e.target.value }))
   }
 
-  async function handlePlaceOrder() {
-    setPaying(true)
+  async function handleProceedToPay() {
+    setLoading(true)
     try {
-      const { data } = await api.post('/api/v1/checkout')
-      reset()
-      navigate('/checkout', { state: { orderId: data.orderId, total: data.total } })
+      const { data } = await api.post('/api/v1/payments/create')
+      setPreferenceId(data.preferenceId)
     } catch {
       /* silently fail */
     } finally {
-      setPaying(false)
+      setLoading(false)
     }
   }
 
@@ -113,13 +130,22 @@ export default function Cart() {
             <input name="phone" value={form.phone} onChange={handleField} className={INPUT} />
           </div>
 
-          <button
-            onClick={handlePlaceOrder}
-            disabled={paying}
-            className="w-full bg-black text-white py-4 text-xs tracking-widest uppercase mt-8 hover:opacity-70 transition-opacity disabled:opacity-30"
-          >
-            {paying ? '...' : 'Place Order'}
-          </button>
+          <div className="mt-8">
+            {preferenceId ? (
+              <Wallet
+                initialization={{ preferenceId }}
+                customization={WALLET_CUSTOMIZATION}
+              />
+            ) : (
+              <button
+                onClick={handleProceedToPay}
+                disabled={loading}
+                className="w-full bg-black text-white py-4 text-xs tracking-widest uppercase hover:opacity-70 transition-opacity disabled:opacity-30"
+              >
+                {loading ? '...' : 'Place Order'}
+              </button>
+            )}
+          </div>
         </div>
 
         {/* RIGHT — Order summary */}

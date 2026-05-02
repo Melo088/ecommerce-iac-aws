@@ -10,6 +10,8 @@ import Login from './pages/Login'
 import Register from './pages/Register'
 import Cart from './pages/Cart'
 import Checkout from './pages/Checkout'
+import PaymentSuccess from './pages/PaymentSuccess'
+import PaymentFailure from './pages/PaymentFailure'
 
 // 1. Creamos este subcomponente para poder acceder a useLocation()
 function AnimatedRoutes() {
@@ -27,6 +29,8 @@ function AnimatedRoutes() {
         <Route path="/register"              element={<Register />} />
         <Route path="/cart"                  element={<Cart />} />
         <Route path="/checkout"              element={<Checkout />} />
+        <Route path="/success"               element={<PaymentSuccess />} />
+        <Route path="/failure"               element={<PaymentFailure />} />
       </Routes>
     </AnimatePresence>
   )

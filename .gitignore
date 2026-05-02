@@ -31,3 +31,6 @@ aws-credentials
 # OS
 .DS_Store
 Thumbs.db
+
+# Pasarela
+backend/src/main/resources/application-*.properties

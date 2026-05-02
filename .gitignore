@@ -33,4 +33,5 @@ aws-credentials
 Thumbs.db
 
 # Pasarela
-backend/src/main/resources/application-*.properties
+backend/src/main/resources/application-local.properties
+backend/src/main/resources/application-dev.properties

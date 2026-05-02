@@ -26,6 +26,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -33,6 +34,11 @@ import java.util.stream.Collectors;
 public class PaymentServiceImpl implements PaymentService {
 
     private static final Logger log = LoggerFactory.getLogger(PaymentServiceImpl.class);
+
+    private static final Set<String> TERMINAL_FAILED = Set.of(
+            "rejected", "cancelled", "refunded", "charged_back");
+    private static final Set<String> STILL_PENDING = Set.of(
+            "in_process", "pending", "authorized");
 
     private final CartService cartService;
     private final CartItemRepository cartItemRepository;
@@ -131,12 +137,12 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     @Transactional
-    public void confirmPayment(Long userId, String orderId, String paymentId) {
+    public String confirmPayment(Long userId, String orderId, String paymentId) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new IllegalArgumentException("Order not found: " + orderId));
 
-        if ("PAID".equals(order.getStatus())) {
-            return;
+        if (Order.STATUS_PAID.equals(order.getStatus())) {
+            return Order.STATUS_PAID;
         }
 
         long mpPaymentId = Long.parseLong(paymentId);
@@ -144,16 +150,8 @@ public class PaymentServiceImpl implements PaymentService {
         try {
             PaymentClient paymentClient = new PaymentClient();
             Payment payment = paymentClient.get(mpPaymentId);
-
-            if (!"approved".equals(payment.getStatus())) {
-                throw new IllegalStateException("Payment not approved: " + payment.getStatus());
-            }
-
-            order.setStatus("PAID");
-            order.setMpPaymentId(paymentId);
-            orderRepository.save(order);
-            cartItemRepository.deleteByUserId(userId);
-
+            String result = applyPaymentResult(order, payment);
+            return result != null ? result : Order.STATUS_PENDING;
         } catch (MPApiException e) {
             log.error("MPApiException confirming payment — status: {}, content: {}, message: {}",
                     e.getStatusCode(),
@@ -186,24 +184,16 @@ public class PaymentServiceImpl implements PaymentService {
             PaymentClient paymentClient = new PaymentClient();
             Payment payment = paymentClient.get(paymentId);
 
-            if (!"approved".equals(payment.getStatus())) {
-                return;
-            }
-
             String externalReference = payment.getExternalReference();
             if (externalReference == null) {
+                log.warn("Webhook: payment {} has no externalReference", paymentId);
                 return;
             }
 
-            orderRepository.findById(externalReference).ifPresent(order -> {
-                if ("PAID".equals(order.getStatus())) {
-                    return;
-                }
-                order.setStatus("PAID");
-                order.setMpPaymentId(String.valueOf(paymentId));
-                orderRepository.save(order);
-                cartItemRepository.deleteByUserId(order.getUserId());
-            });
+            orderRepository.findById(externalReference).ifPresentOrElse(
+                    order -> applyPaymentResult(order, payment),
+                    () -> log.warn("Webhook: no order found for externalReference={}", externalReference)
+            );
 
         } catch (MPApiException e) {
             log.error("MPApiException en webhook — status: {}, content: {}, message: {}, cause: {}",
@@ -216,5 +206,44 @@ public class PaymentServiceImpl implements PaymentService {
                     e.getMessage(),
                     e.getCause() != null ? e.getCause().getMessage() : "null");
         }
+    }
+
+    /**
+     * Maps the MercadoPago payment status to an order status and persists the change.
+     * Returns the resulting order status string, or null if no change was made.
+     */
+    private String applyPaymentResult(Order order, Payment payment) {
+        String mpStatus = payment.getStatus();
+        String detail   = payment.getStatusDetail();
+
+        if ("approved".equals(mpStatus)) {
+            if (Order.STATUS_PAID.equals(order.getStatus())) return Order.STATUS_PAID;
+            order.setStatus(Order.STATUS_PAID);
+            order.setMpPaymentId(String.valueOf(payment.getId()));
+            orderRepository.save(order);
+            cartItemRepository.deleteByUserId(order.getUserId());
+            log.info("Order {} → PAID (mpPaymentId={}, detail={})", order.getId(), payment.getId(), detail);
+            return Order.STATUS_PAID;
+        }
+
+        if (TERMINAL_FAILED.contains(mpStatus)) {
+            if (Order.STATUS_PAID.equals(order.getStatus())) {
+                log.warn("Order {} already PAID — ignoring terminal status: {}", order.getId(), mpStatus);
+                return Order.STATUS_PAID;
+            }
+            order.setStatus(Order.STATUS_FAILED);
+            order.setMpPaymentId(String.valueOf(payment.getId()));
+            orderRepository.save(order);
+            log.info("Order {} → FAILED (mpStatus={}, detail={})", order.getId(), mpStatus, detail);
+            return Order.STATUS_FAILED;
+        }
+
+        if (STILL_PENDING.contains(mpStatus)) {
+            log.info("Order {} still pending — mpStatus={}, detail={}", order.getId(), mpStatus, detail);
+            return Order.STATUS_PENDING;
+        }
+
+        log.warn("Order {} — unrecognized MP status: {}, detail: {}", order.getId(), mpStatus, detail);
+        return null;
     }
 }

@@ -10,6 +10,10 @@ import java.time.LocalDateTime;
 @Table(name = "purchase_orders")
 public class Order {
 
+    public static final String STATUS_PENDING = "PENDING";
+    public static final String STATUS_PAID    = "PAID";
+    public static final String STATUS_FAILED  = "FAILED";
+
     @Id
     private String id;
 

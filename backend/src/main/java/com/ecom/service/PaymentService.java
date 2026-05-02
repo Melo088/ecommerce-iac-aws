@@ -7,5 +7,5 @@ import java.util.Map;
 public interface PaymentService {
     PaymentCreateResponse createPreference(Long userId);
     void handleWebhook(Map<String, Object> body);
-    void confirmPayment(Long userId, String orderId, String paymentId);
+    String confirmPayment(Long userId, String orderId, String paymentId);
 }

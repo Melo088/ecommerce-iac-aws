@@ -393,6 +393,94 @@ El servidor de desarrollo queda en `http://localhost:5173`.
 
 ---
 
+## Pasarela de Pago — MercadoPago
+
+### Flujo general
+
+```
+Usuario presiona "Place Order"
+        │
+        ▼
+POST /api/v1/payments/create  (autenticado)
+        │  Backend crea una Preference en la API de MercadoPago
+        ▼
+Frontend inicializa el widget Wallet Brick con el preferenceId
+        │  Usuario completa el pago en el sandbox de MercadoPago
+        ▼
+MercadoPago redirige al usuario:
+  • Pago aprobado  →  /success?payment_id=...&external_reference=...&status=approved
+  • Pago fallido   →  /failure?status=rejected|cancelled|...
+```
+
+### En producción (AWS)
+
+MercadoPago notifica el resultado al backend mediante webhook antes de redirigir al usuario:
+
+```
+MercadoPago  →  POST /api/v1/payments/webhook  (público, sin JWT)
+                        │
+                        ▼
+              Backend consulta el pago con el SDK
+                        │
+               ┌────────┴────────┐
+            approved          rejected / cancelled / refunded / charged_back
+               │                        │
+           orden → PAID             orden → FAILED
+           carrito vaciado
+```
+
+### En desarrollo local
+
+El webhook de MercadoPago no puede alcanzar `localhost`. Para probarlo, usa **ngrok**:
+
+```bash
+# 1. Exponer el backend
+ngrok http 8080
+
+# 2. Copiar la URL generada (ej: https://f0b1-200-3-193-78.ngrok-free.app)
+#    y actualizarla en application-local.properties:
+app.backend-url=https://f0b1-200-3-193-78.ngrok-free.app
+app.frontend-url=https://f0b1-200-3-193-78.ngrok-free.app
+```
+
+> Sin ngrok, los pagos igual se procesan y MercadoPago redirige a `/success` o `/failure`,
+> pero la orden queda en `PENDING` porque el webhook nunca llega.
+
+### Configuración — variables de entorno
+
+| Capa | Variable | Descripción |
+|---|---|---|
+| Backend | `mercadopago.access-token` | Access token del **vendedor de prueba** (prefijo `APP_USR-`) |
+| Frontend | `VITE_MP_PUBLIC_KEY` | Public key del **vendedor de prueba** (prefijo `APP_USR-`) |
+
+Configuración en local → `backend/src/main/resources/application-local.properties` y `frontend/.env.local`.
+
+> Ambas credenciales deben pertenecer a la **misma cuenta** (el vendedor de prueba).
+> Mezclar credenciales de cuentas distintas produce el error `Invalid public key` al renderizar el widget.
+
+### Cuentas de prueba
+
+Creadas desde [developers.mercadopago.com](https://developers.mercadopago.com) → **Cuentas de prueba**:
+
+| Rol | Usuario |
+|---|---|
+| Vendedor | `TESTUSER6014...` — sus credenciales van en el backend y el frontend |
+| Comprador | `TESTUSER8886...` — inicia sesión en MercadoPago durante el pago |
+
+> El comprador debe tener **saldo mínimo de $1.000 COP** para que el pago sea procesado.
+> Si el pago falla por fondos insuficientes, recargar el saldo desde el panel de la cuenta de prueba.
+
+### Estados de la orden
+
+```
+PENDING  ──►  PAID    (pago aprobado)
+         └──►  FAILED  (pago rechazado, cancelado o reembolsado)
+```
+
+Una orden en `PAID` nunca retrocede — si el webhook intenta marcarla como `FAILED`, el cambio se ignora.
+
+---
+
 ## Despliegue del backend en AWS
 
 ### 1. Compilar el JAR

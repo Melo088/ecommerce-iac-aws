@@ -81,23 +81,11 @@ Parameters:
 # ---------------------------------------------------------------------------
 Resources:
 
-  # ---- 00b: CloudTrail -------------------------------------------------------
-  # Sin dependencias de red — se puede desplegar en paralelo con VpcStack.
-  CwTrailStack:
-    Type: AWS::CloudFormation::Stack
-    Properties:
-      TemplateURL: !Sub
-        'https://s3.${AWS::Region}.amazonaws.com/ecom-artifacts-${Environment}-${AWS::AccountId}/cloudformation/08-cloudtrail.yaml'
-      Parameters:
-        Environment: !Ref Environment
-        Owner: !Ref Owner
-      Tags:
-        - Key: Project
-          Value: ecommerce-iac-aws
-        - Key: Environment
-          Value: !Ref Environment
-        - Key: Owner
-          Value: !Ref Owner
+  # ---- CloudTrail (deshabilitado) --------------------------------------------
+  # CloudTrail no está disponible en el sandbox de AWS Academy por restricciones
+  # de IAM — el rol de laboratorio no permite crear trails ni configurar S3
+  # como destino de logs de CloudTrail.
+  # El template 08-cloudtrail.yaml existe y es válido para entornos reales.
 
   # ---- 01: VPC ---------------------------------------------------------------
   # Sin DependsOn — primer stack, sin dependencias externas.

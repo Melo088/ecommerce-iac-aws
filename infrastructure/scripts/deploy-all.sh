@@ -27,9 +27,21 @@ deploy() {
   echo "$name listo"
 }
 
-deploy ecom-s3-artifacts infrastructure/cloudformation/00-s3-artifacts.yaml
+echo ""
+echo ">>> ecom-s3-artifacts"
+if aws cloudformation describe-stacks --stack-name ecom-s3-artifacts --region us-east-1 &>/dev/null; then
+  echo "ecom-s3-artifacts ya existe, omitiendo creación"
+else
+  aws cloudformation create-stack \
+    --stack-name ecom-s3-artifacts \
+    --template-body file://infrastructure/cloudformation/00-s3-artifacts.yaml \
+    --region us-east-1
+  aws cloudformation wait stack-create-complete --stack-name ecom-s3-artifacts
+  echo "ecom-s3-artifacts listo"
+fi
 
-deploy ecom-trail infrastructure/cloudformation/08-cloudtrail.yaml
+# CloudTrail no está disponible en el sandbox de AWS Academy por restricciones de IAM
+# (el rol de laboratorio no tiene permisos para crear trails ni escribir en S3 desde CloudTrail).
 
 deploy ecom-vpc infrastructure/cloudformation/01-vpc.yaml
 

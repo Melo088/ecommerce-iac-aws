@@ -1,0 +1,218 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  ecommerce-iac-aws — Hosting del frontend React (SPA) y proxy HTTPS del backend.
+  Crea un bucket S3 privado con OAC para servir los archivos estáticos del build
+  de Vite, y dos distribuciones CloudFront: una para el frontend (HTTPS → S3)
+  y otra para el backend (HTTPS → ALB:80). Ambas exponen HTTPS sin necesitar
+  un dominio propio ni un certificado ACM.
+
+# ---------------------------------------------------------------------------
+# Parameters
+# ---------------------------------------------------------------------------
+Parameters:
+  Environment:
+    Type: String
+    Default: prod
+    AllowedValues: [dev, staging, prod]
+    Description: Entorno de despliegue
+
+  Owner:
+    Type: String
+    Default: Melo088-Esteban-GV
+    Description: Propietarios del stack
+
+  AlbStackName:
+    Type: String
+    Default: ecom-alb
+    Description: >
+      Nombre del stack 04-alb desplegado (ej. ecom-alb). Se usa para importar
+      el DNS del ALB como origin del CloudFront de backend.
+
+# ---------------------------------------------------------------------------
+# Resources
+# ---------------------------------------------------------------------------
+Resources:
+
+  # ==========================================================================
+  # BUCKET S3 — archivos estáticos del frontend (privado, acceso vía OAC)
+  # ==========================================================================
+
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'ecom-frontend-${Environment}-${AWS::AccountId}'
+      # Bucket privado — CloudFront accede con OAC, sin URLs públicas de S3
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Name
+          Value: !Sub 'ecom-frontend-${Environment}'
+        - Key: Project
+          Value: ecommerce-iac-aws
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Owner
+          Value: !Ref Owner
+
+  # ==========================================================================
+  # CLOUDFRONT ORIGIN ACCESS CONTROL (OAC)
+  # Reemplaza el antiguo OAI — permite que CloudFront acceda al bucket privado
+  # usando SigV4 sin exponer el bucket públicamente.
+  # ==========================================================================
+
+  FrontendOAC:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub 'ecom-oac-frontend-${Environment}'
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  # ==========================================================================
+  # CLOUDFRONT DISTRIBUTION — Frontend (React SPA → S3)
+  # ==========================================================================
+
+  FrontendDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Comment: !Sub 'ecom-frontend-${Environment} — React SPA'
+        Enabled: true
+        HttpVersion: http2
+        DefaultRootObject: index.html
+        Origins:
+          - Id: S3Origin
+            DomainName: !GetAtt FrontendBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt FrontendOAC.Id
+            # S3OriginConfig con OriginAccessIdentity vacío es requerido
+            # cuando se usa OAC (nuevo mecanismo)
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          # Managed cache policy "CachingOptimized"
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD]
+          Compress: true
+        # SPA routing: cualquier ruta no encontrada en S3 devuelve index.html
+        # para que React Router maneje la navegación del lado del cliente.
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 0
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 0
+        PriceClass: PriceClass_100
+      Tags:
+        - Key: Name
+          Value: !Sub 'ecom-cf-frontend-${Environment}'
+        - Key: Project
+          Value: ecommerce-iac-aws
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Owner
+          Value: !Ref Owner
+
+  # Política del bucket: solo permite acceso a CloudFront vía OAC.
+  # DependsOn FrontendDistribution porque necesita el ARN de la distribución
+  # en la condición AWS:SourceArn.
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    DependsOn: FrontendDistribution
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowCloudFrontOAC
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub '${FrontendBucket.Arn}/*'
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub
+                  'arn:aws:cloudfront::${AWS::AccountId}:distribution/${FrontendDistribution}'
+
+  # ==========================================================================
+  # CLOUDFRONT DISTRIBUTION — Backend (HTTPS → ALB:80)
+  # Expone la API de Spring Boot en HTTPS sin necesitar TLS en el ALB.
+  # CloudFront termina TLS hacia el browser y usa HTTP hacia el ALB origin.
+  # ==========================================================================
+
+  BackendDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Comment: !Sub 'ecom-backend-${Environment} — ALB proxy HTTPS'
+        Enabled: true
+        HttpVersion: http2
+        Origins:
+          - Id: AlbOrigin
+            # Importa el DNS del ALB desde el stack 04-alb
+            DomainName: !ImportValue
+              Fn::Sub: '${AlbStackName}-AlbDnsName'
+            CustomOriginConfig:
+              HTTPPort: 80
+              OriginProtocolPolicy: http-only
+        DefaultCacheBehavior:
+          TargetOriginId: AlbOrigin
+          ViewerProtocolPolicy: redirect-to-https
+          # Sin caché para la API — cada request llega al backend
+          # Managed cache policy "CachingDisabled"
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          # Managed origin request policy "AllViewerExceptHostHeader":
+          # reenvía todos los headers/cookies/querystrings del viewer
+          # excepto Host (el ALB no necesita el dominio de CloudFront)
+          OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+          AllowedMethods: [DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT]
+          CachedMethods: [GET, HEAD]
+          Compress: false
+        PriceClass: PriceClass_100
+      Tags:
+        - Key: Name
+          Value: !Sub 'ecom-cf-backend-${Environment}'
+        - Key: Project
+          Value: ecommerce-iac-aws
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Owner
+          Value: !Ref Owner
+
+# ---------------------------------------------------------------------------
+# Outputs
+# ---------------------------------------------------------------------------
+Outputs:
+  FrontendBucketName:
+    Description: Bucket S3 donde subir el build de Vite (npm run build → dist/)
+    Value: !Ref FrontendBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-FrontendBucketName'
+
+  FrontendDistributionId:
+    Description: ID de la distribución CloudFront del frontend (para invalidaciones)
+    Value: !Ref FrontendDistribution
+    Export:
+      Name: !Sub '${AWS::StackName}-FrontendDistributionId'
+
+  FrontendCloudFrontUrl:
+    Description: URL HTTPS del frontend React (usar como APP_FRONTEND_URL)
+    Value: !Sub 'https://${FrontendDistribution.DomainName}'
+    Export:
+      Name: !Sub '${AWS::StackName}-FrontendCloudFrontUrl'
+
+  BackendCloudFrontUrl:
+    Description: URL HTTPS del backend Spring Boot (usar como VITE_API_URL y APP_BACKEND_URL)
+    Value: !Sub 'https://${BackendDistribution.DomainName}'
+    Export:
+      Name: !Sub '${AWS::StackName}-BackendCloudFrontUrl'

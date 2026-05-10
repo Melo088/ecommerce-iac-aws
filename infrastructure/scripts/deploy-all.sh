@@ -3,8 +3,12 @@ set -e
 
 echo "=== Desplegando todos los stacks ==="
 
-read -rp  "Email para alertas SNS (AlertEmail): " ALERT_EMAIL
-read -rsp "Contraseña RDS (DBPassword):          " DB_PASSWORD
+read -rp  "Email para alertas SNS (AlertEmail):        " ALERT_EMAIL
+read -rsp "Contraseña RDS (DBPassword):               " DB_PASSWORD
+echo
+read -rsp "MercadoPago access token (MpAccessToken):  " MP_ACCESS_TOKEN
+echo
+read -rsp "JWT secret (JwtSecret, min 32 chars):      " JWT_SECRET
 echo
 
 IAM_PROFILE=$(aws iam list-instance-profiles --query 'InstanceProfiles[0].InstanceProfileName' --output text)
@@ -24,6 +28,8 @@ deploy() {
 }
 
 deploy ecom-s3-artifacts infrastructure/cloudformation/00-s3-artifacts.yaml
+
+deploy ecom-trail infrastructure/cloudformation/08-cloudtrail.yaml
 
 deploy ecom-vpc infrastructure/cloudformation/01-vpc.yaml
 
@@ -66,6 +72,8 @@ deploy ecom-asg infrastructure/cloudformation/05-autoscaling.yaml \
     ParameterKey=RdsStackName,ParameterValue=ecom-rds \
     ParameterKey=AlbStackName,ParameterValue=ecom-alb \
     ParameterKey=DBPassword,ParameterValue=$DB_PASSWORD \
+    ParameterKey=MpAccessToken,ParameterValue=$MP_ACCESS_TOKEN \
+    ParameterKey=JwtSecret,ParameterValue=$JWT_SECRET \
     ParameterKey=IamInstanceProfile,ParameterValue=$IAM_PROFILE
 
 deploy ecom-cw infrastructure/cloudformation/06-cloudwatch.yaml \

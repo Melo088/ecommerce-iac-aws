@@ -79,6 +79,34 @@ Parameters:
     Default: ecom-alb-prod
     Description: Nombre del stack 04-alb (para importar TargetGroupArn)
 
+  MpAccessToken:
+    Type: String
+    NoEcho: true
+    Description: >
+      Access token de MercadoPago (prefijo APP_USR-). Se inyecta en la
+      variable de entorno MERCADOPAGO_ACCESS_TOKEN de Spring Boot.
+
+  JwtSecret:
+    Type: String
+    NoEcho: true
+    Description: >
+      Secreto para firmar los JWT de la app (mínimo 32 caracteres).
+      Se inyecta en la variable JWT_SECRET de Spring Boot.
+
+  BackendPublicUrl:
+    Type: String
+    Default: ''
+    Description: >
+      URL pública HTTPS del backend (CloudFront). Vacío en el primer deploy;
+      actualizar con update-stack tras crear la distribución CloudFront.
+
+  FrontendPublicUrl:
+    Type: String
+    Default: ''
+    Description: >
+      URL pública HTTPS del frontend (CloudFront). Vacío en el primer deploy;
+      actualizar con update-stack tras crear la distribución CloudFront.
+
 # ---------------------------------------------------------------------------
 # Resources
 # ---------------------------------------------------------------------------
@@ -206,6 +234,10 @@ Resources:
                 SERVER_PORT=8080
                 MANAGEMENT_ENDPOINTS_WEB_BASE_PATH=/api/v1
                 SPRING_JPA_HIBERNATE_DDL_AUTO=update
+                MERCADOPAGO_ACCESS_TOKEN=${MpAccessToken}
+                JWT_SECRET=${JwtSecret}
+                APP_BACKEND_URL=${BackendPublicUrl}
+                APP_FRONTEND_URL=${FrontendPublicUrl}
                 ENVEOF
                 chmod 600 /etc/ecom-app.env
                 chown ecom:ecom /etc/ecom-app.env

@@ -56,10 +56,48 @@ Parameters:
       En AWS Academy obtenerlo con:
       aws iam list-instance-profiles --query 'InstanceProfiles[0].InstanceProfileName'
 
+  MpAccessToken:
+    Type: String
+    NoEcho: true
+    Description: Access token de MercadoPago (APP_USR-...) para el backend
+
+  JwtSecret:
+    Type: String
+    NoEcho: true
+    Description: Secreto JWT para Spring Boot (mínimo 32 caracteres)
+
+  BackendPublicUrl:
+    Type: String
+    Default: ''
+    Description: URL HTTPS del backend (CloudFront). Dejar vacío en el primer deploy.
+
+  FrontendPublicUrl:
+    Type: String
+    Default: ''
+    Description: URL HTTPS del frontend (CloudFront). Dejar vacío en el primer deploy.
+
 # ---------------------------------------------------------------------------
 # Resources — nested stacks en orden de dependencia
 # ---------------------------------------------------------------------------
 Resources:
+
+  # ---- 00b: CloudTrail -------------------------------------------------------
+  # Sin dependencias de red — se puede desplegar en paralelo con VpcStack.
+  CwTrailStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub
+        'https://s3.${AWS::Region}.amazonaws.com/ecom-artifacts-${Environment}-${AWS::AccountId}/cloudformation/08-cloudtrail.yaml'
+      Parameters:
+        Environment: !Ref Environment
+        Owner: !Ref Owner
+      Tags:
+        - Key: Project
+          Value: ecommerce-iac-aws
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Owner
+          Value: !Ref Owner
 
   # ---- 01: VPC ---------------------------------------------------------------
   # Sin DependsOn — primer stack, sin dependencias externas.
@@ -165,6 +203,10 @@ Resources:
         RdsStackName: !Select [1, !Split ['/', !Ref RdsStack]]
         AlbStackName: !Select [1, !Split ['/', !Ref AlbStack]]
         DBPassword: !Ref DBPassword
+        MpAccessToken: !Ref MpAccessToken
+        JwtSecret: !Ref JwtSecret
+        BackendPublicUrl: !Ref BackendPublicUrl
+        FrontendPublicUrl: !Ref FrontendPublicUrl
       Tags:
         - Key: Project
           Value: ecommerce-iac-aws

@@ -1,0 +1,126 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  ecommerce-iac-aws — CloudTrail trail para registro de actividad de la cuenta
+  AWS. Crea un bucket S3 dedicado para los logs con
+  política de retención de 90 días y validación de integridad de archivos.
+
+# ---------------------------------------------------------------------------
+# Parameters
+# ---------------------------------------------------------------------------
+Parameters:
+  Environment:
+    Type: String
+    Default: prod
+    AllowedValues: [dev, staging, prod]
+    Description: Entorno de despliegue
+
+  Owner:
+    Type: String
+    Default: Melo088-Esteban-GV
+    Description: Propietarios del stack
+
+# ---------------------------------------------------------------------------
+# Resources
+# ---------------------------------------------------------------------------
+Resources:
+
+  # ==========================================================================
+  # BUCKET S3 PARA LOGS DE CLOUDTRAIL
+  # ==========================================================================
+
+  TrailBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'ecom-cloudtrail-logs-${Environment}-${AWS::AccountId}'
+      # Acceso público completamente bloqueado — solo CloudTrail escribe aquí
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      # Retención de 90 días para control de costos en sandbox
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireLogsAfter90Days
+            Status: Enabled
+            ExpirationInDays: 90
+      Tags:
+        - Key: Name
+          Value: !Sub 'ecom-cloudtrail-logs-${Environment}'
+        - Key: Project
+          Value: ecommerce-iac-aws
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Owner
+          Value: !Ref Owner
+
+  # CloudTrail requiere que la bucket policy esté en su lugar ANTES de que el
+  # trail comience a escribir. DependsOn en el trail garantiza el orden.
+  TrailBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref TrailBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          # CloudTrail verifica permisos ACL antes de escribir
+          - Sid: AWSCloudTrailAclCheck
+            Effect: Allow
+            Principal:
+              Service: cloudtrail.amazonaws.com
+            Action: s3:GetBucketAcl
+            Resource: !GetAtt TrailBucket.Arn
+          # CloudTrail escribe los archivos de log bajo AWSLogs/{AccountId}/
+          - Sid: AWSCloudTrailWrite
+            Effect: Allow
+            Principal:
+              Service: cloudtrail.amazonaws.com
+            Action: s3:PutObject
+            Resource: !Sub '${TrailBucket.Arn}/AWSLogs/${AWS::AccountId}/*'
+            Condition:
+              StringEquals:
+                s3:x-amz-acl: bucket-owner-full-control
+
+  # ==========================================================================
+  # CLOUDTRAIL TRAIL
+  # ==========================================================================
+
+  AppTrail:
+    Type: AWS::CloudTrail::Trail
+    # El trail no puede activarse hasta que la bucket policy esté lista
+    DependsOn: TrailBucketPolicy
+    Properties:
+      TrailName: !Sub 'ecom-trail-${Environment}'
+      IsLogging: true
+      S3BucketName: !Ref TrailBucket
+      # Registrar eventos globales (IAM, STS, CloudFront) además de regionales
+      IncludeGlobalServiceEvents: true
+      # Single-region (sandbox us-east-1); en producción usar IsMultiRegionTrail: true
+      IsMultiRegionTrail: false
+      # Validación criptográfica de archivos de log — detecta modificaciones
+      EnableLogFileValidation: true
+      Tags:
+        - Key: Name
+          Value: !Sub 'ecom-trail-${Environment}'
+        - Key: Project
+          Value: ecommerce-iac-aws
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Owner
+          Value: !Ref Owner
+
+# ---------------------------------------------------------------------------
+# Outputs
+# ---------------------------------------------------------------------------
+Outputs:
+  TrailArn:
+    Description: ARN del trail de CloudTrail
+    Value: !GetAtt AppTrail.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-TrailArn'
+
+  TrailBucketName:
+    Description: Nombre del bucket S3 donde CloudTrail escribe los logs
+    Value: !Ref TrailBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-TrailBucketName'

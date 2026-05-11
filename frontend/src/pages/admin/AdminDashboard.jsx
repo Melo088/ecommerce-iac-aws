@@ -165,7 +165,7 @@ export default function AdminDashboard() {
 
               {/* Main image */}
               <div className="flex flex-col gap-2">
-                <p className="text-[10px] tracking-widest text-black">MAIN</p>
+                <p className="text-[10px] tracking-widest text-black">MAIN IMAGE</p>
                 <label className="border border-black flex items-center justify-between py-6 px-5 cursor-pointer hover:bg-gray-50 transition-colors">
                   <span className="text-xs tracking-widest text-gray-300 uppercase truncate pr-4">
                     {mainImage ? mainImage.name : 'SELECT FILE'}
@@ -190,7 +190,7 @@ export default function AdminDashboard() {
                   <div key={i} className="flex flex-col gap-2">
                     <label className="border border-black flex items-center justify-between py-6 px-5 cursor-pointer hover:bg-gray-50 transition-colors">
                       <span className="text-xs tracking-widest text-gray-300 uppercase truncate pr-4">
-                        {file ? file.name : `IMAGE ${i + 1}`}
+                        {file ? file.name : `GALLERY ${i + 1}`}
                       </span>
                       <span className="text-[10px] tracking-widest text-gray-300 shrink-0">BROWSE</span>
                       <input

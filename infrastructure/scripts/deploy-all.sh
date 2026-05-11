@@ -86,7 +86,9 @@ deploy ecom-asg infrastructure/cloudformation/05-autoscaling.yaml \
     ParameterKey=DBPassword,ParameterValue=$DB_PASSWORD \
     ParameterKey=MpAccessToken,ParameterValue=$MP_ACCESS_TOKEN \
     ParameterKey=JwtSecret,ParameterValue=$JWT_SECRET \
-    ParameterKey=IamInstanceProfile,ParameterValue=$IAM_PROFILE
+    ParameterKey=IamInstanceProfile,ParameterValue=$IAM_PROFILE \
+    ParameterKey=S3MediaBucket,ParameterValue=ecom-media-prod-$(aws sts get-caller-identity --query Account --output text) \
+    ParameterKey=AwsRegion,ParameterValue=us-east-1
 
 deploy ecom-cw infrastructure/cloudformation/06-cloudwatch.yaml \
   --parameters \
@@ -94,5 +96,78 @@ deploy ecom-cw infrastructure/cloudformation/06-cloudwatch.yaml \
     ParameterKey=AlbStackName,ParameterValue=ecom-alb \
     ParameterKey=AlertEmail,ParameterValue=$ALERT_EMAIL
 
+# ── ecom-media (bucket S3 + CloudFront para imágenes de productos) ───────────
+echo ""
+echo ">>> ecom-media"
+if aws cloudformation describe-stacks --stack-name ecom-media --region us-east-1 &>/dev/null; then
+  echo "ecom-media ya existe, omitiendo creación"
+else
+  aws cloudformation create-stack \
+    --stack-name ecom-media \
+    --template-body file://infrastructure/cloudformation/08-media.yaml \
+    --region us-east-1
+  aws cloudformation wait stack-create-complete --stack-name ecom-media
+  echo "ecom-media listo"
+fi
+
+MEDIA_BUCKET=$(aws cloudformation describe-stacks \
+  --stack-name ecom-media \
+  --query 'Stacks[0].Outputs[?OutputKey==`MediaBucketName`].OutputValue' \
+  --output text)
+
+MEDIA_CF_URL=$(aws cloudformation describe-stacks \
+  --stack-name ecom-media \
+  --query 'Stacks[0].Outputs[?OutputKey==`MediaCloudFrontUrl`].OutputValue' \
+  --output text)
+
+# ── Subir imágenes de productos al bucket de media ───────────────────────────
+echo ""
+echo ">>> upload-media → s3://${MEDIA_BUCKET}"
+"$(dirname "$0")/upload-media.sh" "$MEDIA_BUCKET"
+
+# ── ecom-frontend (S3 + CloudFront para el build de React) ───────────────────
+echo ""
+echo ">>> ecom-frontend"
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+if aws cloudformation describe-stacks --stack-name ecom-frontend --region us-east-1 &>/dev/null; then
+  echo "ecom-frontend ya existe, omitiendo creación"
+else
+  aws cloudformation create-stack \
+    --stack-name ecom-frontend \
+    --template-url "https://s3.us-east-1.amazonaws.com/ecom-artifacts-prod-${ACCOUNT_ID}/cloudformation/07-frontend.yaml" \
+    --parameters ParameterKey=AlbStackName,ParameterValue=ecom-alb \
+    --region us-east-1
+  aws cloudformation wait stack-create-complete --stack-name ecom-frontend
+  echo "ecom-frontend listo"
+fi
+
+BACKEND_CF=$(aws cloudformation describe-stacks \
+  --stack-name ecom-frontend \
+  --query 'Stacks[0].Outputs[?OutputKey==`BackendCloudFrontUrl`].OutputValue' \
+  --output text)
+FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
+  --stack-name ecom-frontend \
+  --query 'Stacks[0].Outputs[?OutputKey==`FrontendBucketName`].OutputValue' \
+  --output text)
+FRONTEND_DIST=$(aws cloudformation describe-stacks \
+  --stack-name ecom-frontend \
+  --query 'Stacks[0].Outputs[?OutputKey==`FrontendDistributionId`].OutputValue' \
+  --output text)
+
 echo ""
 echo "=== Todo desplegado ==="
+echo ""
+echo "URLs relevantes:"
+echo "  Backend  (VITE_API_URL)        : ${BACKEND_CF}"
+echo "  Media CDN (VITE_MEDIA_BUCKET_URL): ${MEDIA_CF_URL}"
+echo "  Frontend bucket                : s3://${FRONTEND_BUCKET}"
+echo "  Frontend distribution          : ${FRONTEND_DIST}"
+echo ""
+echo "Próximo paso — compilar y subir el frontend:"
+echo "  cd frontend"
+echo "  VITE_API_URL=${BACKEND_CF} \\"
+echo "  VITE_MEDIA_BUCKET_URL=${MEDIA_CF_URL} \\"
+echo "  VITE_MP_PUBLIC_KEY=<public-key> \\"
+echo "  npm run build"
+echo "  aws s3 sync dist/ s3://${FRONTEND_BUCKET}/ --delete"
+echo "  aws cloudfront create-invalidation --distribution-id ${FRONTEND_DIST} --paths '/*'"

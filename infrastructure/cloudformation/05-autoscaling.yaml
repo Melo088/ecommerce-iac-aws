@@ -107,6 +107,18 @@ Parameters:
       URL pública HTTPS del frontend (CloudFront). Vacío en el primer deploy;
       actualizar con update-stack tras crear la distribución CloudFront.
 
+  S3MediaBucket:
+    Type: String
+    Default: ''
+    Description: >
+      Nombre del bucket S3 de imágenes de productos (ecom-media stack).
+      Se inyecta como S3_MEDIA_BUCKET en la app; vacío desactiva la firma de URLs.
+
+  AwsRegion:
+    Type: String
+    Default: us-east-1
+    Description: Región AWS donde está el bucket de media (para el SDK de presigned URLs).
+
 # ---------------------------------------------------------------------------
 # Resources
 # ---------------------------------------------------------------------------
@@ -238,6 +250,8 @@ Resources:
                 JWT_SECRET=${JwtSecret}
                 APP_BACKEND_URL=${BackendPublicUrl}
                 APP_FRONTEND_URL=${FrontendPublicUrl}
+                S3_MEDIA_BUCKET=${S3MediaBucket}
+                AWS_REGION=${AwsRegion}
                 ENVEOF
                 chmod 600 /etc/ecom-app.env
                 chown ecom:ecom /etc/ecom-app.env

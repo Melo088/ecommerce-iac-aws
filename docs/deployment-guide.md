@@ -100,12 +100,81 @@ El script solicita cuatro valores de forma interactiva:
 
 > **Nota SNS:** AWS enviará un email de confirmación a la dirección ingresada. Hacer clic en "Confirm subscription" para activar las alertas.
 
+> **Nota media bucket:** `deploy-all.sh` pasa automáticamente `S3MediaBucket=ecom-media-prod-<ACCOUNT_ID>` y `AwsRegion=us-east-1` al stack `ecom-asg`. Las instancias EC2 arrancan con las variables `S3_MEDIA_BUCKET` y `AWS_REGION` ya configuradas, de modo que el admin puede subir imágenes de productos y el backend genera las presigned URLs correctamente sin ningún paso manual adicional.
+
 Obtener el DNS del ALB al finalizar:
 ```bash
 aws cloudformation describe-stacks \
   --stack-name ecom-alb \
   --query 'Stacks[0].Outputs[?OutputKey==`AlbDnsName`].OutputValue' \
   --output text
+```
+
+---
+
+## Paso 3.5 — Desplegar bucket de media y subir imágenes de productos
+
+### Desplegar el stack `ecom-media`
+
+```bash
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+
+aws cloudformation create-stack \
+  --stack-name ecom-media \
+  --template-url https://s3.us-east-1.amazonaws.com/ecom-artifacts-prod-${ACCOUNT_ID}/cloudformation/08-media.yaml \
+  --region us-east-1
+
+aws cloudformation wait stack-create-complete --stack-name ecom-media
+```
+
+Tiempo estimado: **10–15 minutos** (CloudFront tarda en provisionarse).
+
+### Subir imágenes al bucket
+
+```bash
+MEDIA_BUCKET=$(aws cloudformation describe-stacks \
+  --stack-name ecom-media \
+  --query 'Stacks[0].Outputs[?OutputKey==`MediaBucketName`].OutputValue' \
+  --output text)
+
+./infrastructure/scripts/upload-media.sh "$MEDIA_BUCKET"
+```
+
+El script itera sobre `frontend/public/products/{N}/` y sube:
+- `main.png` → `s3://<bucket>/products/{N}/main.png`
+- `gallery/*` → `s3://<bucket>/products/{N}/gallery/{filename}` (si existe la carpeta)
+
+### Seed de productos en RDS (datos iniciales)
+
+Para cargar productos en la base de datos de producción, conectarse al RDS mediante el Bastion Host:
+
+```bash
+# Desde tu máquina local, copiar el SQL al Bastion
+scp -i ~/.ssh/ecom-keypair.pem backend/src/main/resources/data.sql \
+  ec2-user@<BASTION_IP>:/tmp/data.sql
+
+# SSH al Bastion
+ssh -i ~/.ssh/ecom-keypair.pem ec2-user@<BASTION_IP>
+
+# Desde el Bastion, ejecutar el script contra RDS
+DB_ENDPOINT=$(aws cloudformation describe-stacks \
+  --stack-name ecom-rds \
+  --query 'Stacks[0].Outputs[?OutputKey==`DBEndpoint`].OutputValue' \
+  --output text)
+
+psql -h $DB_ENDPOINT -U ecomadmin -d ecomdb -f /tmp/data.sql
+```
+
+> El archivo `data.sql` se usa automáticamente en local (perfil H2), pero en RDS hay que ejecutarlo manualmente vía Bastion porque las instancias EC2 del ASG están en subredes privadas sin acceso directo.
+
+### Guardar la URL del CDN (necesaria en Paso 5)
+
+```bash
+MEDIA_CF=$(aws cloudformation describe-stacks \
+  --stack-name ecom-media \
+  --query 'Stacks[0].Outputs[?OutputKey==`MediaCloudFrontUrl`].OutputValue' \
+  --output text)
+echo "VITE_MEDIA_BUCKET_URL=${MEDIA_CF}"
 ```
 
 ---
@@ -152,9 +221,13 @@ FRONTEND_BUCKET=$(aws cloudformation describe-stacks --stack-name ecom-frontend 
 FRONTEND_DIST=$(aws cloudformation describe-stacks --stack-name ecom-frontend \
   --query 'Stacks[0].Outputs[?OutputKey==`FrontendDistributionId`].OutputValue' --output text)
 
+MEDIA_CF=$(aws cloudformation describe-stacks --stack-name ecom-media \
+  --query 'Stacks[0].Outputs[?OutputKey==`MediaCloudFrontUrl`].OutputValue' --output text)
+
 cd frontend
 VITE_API_URL=${BACKEND_CF} \
 VITE_MP_PUBLIC_KEY=<public-key-de-mercadopago> \
+VITE_MEDIA_BUCKET_URL=${MEDIA_CF} \
 npm run build
 
 aws s3 sync dist/ s3://${FRONTEND_BUCKET}/ --delete
@@ -284,7 +357,7 @@ journalctl -u ecom-app -f
 Eliminar los stacks en orden inverso para respetar dependencias:
 
 ```bash
-for stack in ecom-frontend ecom-cw ecom-asg ecom-alb ecom-rds ecom-sg ecom-vpc ecom-s3-artifacts; do
+for stack in ecom-frontend ecom-media ecom-cw ecom-asg ecom-alb ecom-rds ecom-sg ecom-vpc ecom-s3-artifacts; do
   echo "Eliminando $stack..."
   aws cloudformation delete-stack --stack-name $stack
   aws cloudformation wait stack-delete-complete --stack-name $stack

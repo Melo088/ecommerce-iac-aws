@@ -61,7 +61,7 @@ export default function Cart() {
   if (cartLoading) {
     return (
       <main className="min-h-screen flex items-center justify-center">
-        <span className="text-xs tracking-widest text-gray-300">LOADING</span>
+        <span className="text-xs tracking-widest text-black">LOADING</span>
       </main>
     )
   }
@@ -69,7 +69,7 @@ export default function Cart() {
   if (items.length === 0) {
     return (
       <main className="min-h-screen flex items-center justify-center">
-        <span className="text-xs tracking-widest text-gray-300">EMPTY</span>
+        <span className="text-xs tracking-widest text-black">EMPTY</span>
       </main>
     )
   }

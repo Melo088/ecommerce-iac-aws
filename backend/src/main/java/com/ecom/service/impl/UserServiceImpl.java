@@ -51,8 +51,8 @@ public class UserServiceImpl implements UserService {
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             throw new UnauthorizedException("Credenciales inválidas");
         }
-        String token = jwtUtil.generateToken(user.getId(), user.getEmail());
-        return new LoginResponse(token, user.getId(), user.getName());
+        String token = jwtUtil.generateToken(user.getId(), user.getEmail(), user.getRole());
+        return new LoginResponse(token, user.getId(), user.getName(), user.getRole());
     }
 
     private UserResponse toResponse(User u) {

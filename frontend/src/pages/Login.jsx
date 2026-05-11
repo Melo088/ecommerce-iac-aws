@@ -21,7 +21,7 @@ export default function Login() {
     setLoading(true)
     try {
       const data = await login(form.email, form.password)
-      storeLogin({ token: data.token, userId: data.userId, name: data.name })
+      storeLogin({ token: data.token, userId: data.userId, name: data.name, role: data.role })
       navigate('/')
     } catch (err) {
       setError(err.response?.data?.message || 'INVALID CREDENTIALS')

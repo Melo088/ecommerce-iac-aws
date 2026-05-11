@@ -1,21 +1,12 @@
-const S3        = import.meta.env.VITE_S3_BUCKET
-const USE_LOCAL = import.meta.env.VITE_USE_LOCAL_IMAGES === 'true'
+const MEDIA_URL = import.meta.env.VITE_MEDIA_BUCKET_URL
 
-/**
- * Builds the URL for a product image.
- * index = 'main' → main.png
- * index = 1,2,3… → gallery/1.png, gallery/2.png, …
- */
 export function getImageUrl(productId, index = 'main') {
-  const isMain = index === 'main'
-
-  if (USE_LOCAL) {
-    return isMain
+  if (!MEDIA_URL) {
+    return index === 'main'
       ? `/products/${productId}/main.png`
       : `/products/${productId}/gallery/${index}.png`
   }
-
-  return isMain
-    ? `https://${S3}.s3.amazonaws.com/products/${productId}/main.png`
-    : `https://${S3}.s3.amazonaws.com/products/${productId}/gallery/${index}.png`
+  return index === 'main'
+    ? `${MEDIA_URL}/products/${productId}/main.png`
+    : `${MEDIA_URL}/products/${productId}/gallery/${index}.png`
 }

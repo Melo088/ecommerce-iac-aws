@@ -25,6 +25,9 @@ public class User {
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
+    @Column(nullable = false)
+    private String role = "USER";
+
     public User() {}
 
     public Long getId() { return id; }
@@ -40,4 +43,7 @@ public class User {
     public void setName(String name) { this.name = name; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
+
+    public String getRole() { return role; }
+    public void setRole(String role) { this.role = role; }
 }

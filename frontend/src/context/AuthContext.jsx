@@ -7,20 +7,23 @@ export function AuthProvider({ children }) {
     const token = localStorage.getItem('token')
     const userId = localStorage.getItem('userId')
     const name = localStorage.getItem('name')
-    return token ? { token, userId, name } : null
+    const role = localStorage.getItem('role') ?? 'USER'
+    return token ? { token, userId, name, role } : null
   })
 
-  function login({ token, userId, name }) {
+  function login({ token, userId, name, role }) {
     localStorage.setItem('token', token)
     localStorage.setItem('userId', userId)
     localStorage.setItem('name', name)
-    setAuth({ token, userId, name })
+    localStorage.setItem('role', role ?? 'USER')
+    setAuth({ token, userId, name, role: role ?? 'USER' })
   }
 
   function logout() {
     localStorage.removeItem('token')
     localStorage.removeItem('userId')
     localStorage.removeItem('name')
+    localStorage.removeItem('role')
     setAuth(null)
   }
 

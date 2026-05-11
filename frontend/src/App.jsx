@@ -4,6 +4,8 @@ import { AuthProvider } from './context/AuthContext'
 import { UIProvider } from './context/UIContext'
 import { CartProvider } from './context/CartContext'
 import Header from './components/Header'
+import RequireAuth from './components/RequireAuth'
+import RequireAdmin from './components/RequireAdmin'
 import Home from './pages/Home'
 import ProductDetail from './pages/ProductDetail'
 import Login from './pages/Login'
@@ -12,6 +14,7 @@ import Cart from './pages/Cart'
 import Checkout from './pages/Checkout'
 import PaymentSuccess from './pages/PaymentSuccess'
 import PaymentFailure from './pages/PaymentFailure'
+import AdminDashboard from './pages/admin/AdminDashboard'
 
 // 1. Creamos este subcomponente para poder acceder a useLocation()
 function AnimatedRoutes() {
@@ -22,15 +25,24 @@ function AnimatedRoutes() {
     <AnimatePresence mode="wait">
       {/* 3. Le pasamos el location y un key para que React sepa cuándo hay un cambio real de página */}
       <Routes location={location} key={location.pathname}>
-        <Route path="/"                      element={<Home />} />
+        <Route path="/"                       element={<Home />} />
         <Route path="/category/:categoryName" element={<Home />} />
-        <Route path="/product/:id"           element={<ProductDetail />} />
-        <Route path="/login"                 element={<Login />} />
-        <Route path="/register"              element={<Register />} />
-        <Route path="/cart"                  element={<Cart />} />
-        <Route path="/checkout"              element={<Checkout />} />
-        <Route path="/success"               element={<PaymentSuccess />} />
-        <Route path="/failure"               element={<PaymentFailure />} />
+        <Route path="/product/:id"            element={<ProductDetail />} />
+        <Route path="/login"                  element={<Login />} />
+        <Route path="/register"               element={<Register />} />
+        <Route path="/success"                element={<PaymentSuccess />} />
+        <Route path="/failure"                element={<PaymentFailure />} />
+
+        {/* Rutas que requieren autenticación */}
+        <Route element={<RequireAuth />}>
+          <Route path="/cart"     element={<Cart />} />
+          <Route path="/checkout" element={<Checkout />} />
+        </Route>
+
+        {/* Rutas exclusivas de admin */}
+        <Route element={<RequireAdmin />}>
+          <Route path="/admin" element={<AdminDashboard />} />
+        </Route>
       </Routes>
     </AnimatePresence>
   )

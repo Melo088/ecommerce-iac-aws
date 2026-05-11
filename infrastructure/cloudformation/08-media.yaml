@@ -1,0 +1,158 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  ecommerce-iac-aws — Bucket S3 de media (imágenes de productos) con distribución
+  CloudFront. El bucket es privado: CloudFront lo lee con OAC (SigV4). El backend
+  genera presigned PUT URLs para que el browser suba imágenes directamente a S3
+  sin pasar por el servidor. CORS habilitado para uploads desde el browser.
+
+# ---------------------------------------------------------------------------
+# Parameters
+# ---------------------------------------------------------------------------
+Parameters:
+  Environment:
+    Type: String
+    Default: prod
+    AllowedValues: [dev, staging, prod]
+    Description: Entorno de despliegue
+
+  Owner:
+    Type: String
+    Default: Melo088-Esteban-GV
+    Description: Propietarios del stack
+
+  AllowedUploadOrigin:
+    Type: String
+    Default: '*'
+    Description: >
+      Origen permitido en CORS para uploads (PUT) desde el browser.
+      Usar '*' en dev o la URL de CloudFront del frontend en prod.
+
+# ---------------------------------------------------------------------------
+# Resources
+# ---------------------------------------------------------------------------
+Resources:
+
+  # ==========================================================================
+  # BUCKET S3 — imágenes de productos (privado, acceso vía OAC + presigned URLs)
+  # ==========================================================================
+
+  MediaBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'ecom-media-${Environment}-${AWS::AccountId}'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      # CORS — permite al browser hacer PUT con presigned URLs y GET para previsualizar
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins:
+              - !Ref AllowedUploadOrigin
+            AllowedMethods: [GET, PUT]
+            AllowedHeaders: ['*']
+            ExposedHeaders: [ETag]
+            MaxAge: 3000
+      Tags:
+        - Key: Name
+          Value: !Sub 'ecom-media-${Environment}'
+        - Key: Project
+          Value: ecommerce-iac-aws
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Owner
+          Value: !Ref Owner
+
+  # ==========================================================================
+  # CLOUDFRONT ORIGIN ACCESS CONTROL (OAC)
+  # ==========================================================================
+
+  MediaOAC:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub 'ecom-oac-media-${Environment}'
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  # ==========================================================================
+  # CLOUDFRONT DISTRIBUTION — Media (imágenes estáticas desde S3)
+  # ==========================================================================
+
+  MediaDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Comment: !Sub 'ecom-media-${Environment} — product images'
+        Enabled: true
+        HttpVersion: http2
+        Origins:
+          - Id: S3MediaOrigin
+            DomainName: !GetAtt MediaBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt MediaOAC.Id
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+        DefaultCacheBehavior:
+          TargetOriginId: S3MediaOrigin
+          ViewerProtocolPolicy: redirect-to-https
+          # Managed cache policy "CachingOptimized" — las imágenes son estáticas
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD]
+          Compress: true
+        PriceClass: PriceClass_100
+      Tags:
+        - Key: Name
+          Value: !Sub 'ecom-cf-media-${Environment}'
+        - Key: Project
+          Value: ecommerce-iac-aws
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Owner
+          Value: !Ref Owner
+
+  # Política del bucket: solo CloudFront (OAC) puede leer los objetos.
+  # Los PUTs via presigned URL se autentican con la firma SigV4 del rol EC2,
+  # sin necesitar una entrada adicional en esta política.
+  MediaBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    DependsOn: MediaDistribution
+    Properties:
+      Bucket: !Ref MediaBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowCloudFrontOACRead
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub '${MediaBucket.Arn}/*'
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub
+                  'arn:aws:cloudfront::${AWS::AccountId}:distribution/${MediaDistribution}'
+
+# ---------------------------------------------------------------------------
+# Outputs
+# ---------------------------------------------------------------------------
+Outputs:
+  MediaBucketName:
+    Description: Nombre del bucket S3 de media (pasar como S3_MEDIA_BUCKET al backend)
+    Value: !Ref MediaBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-MediaBucketName'
+
+  MediaDistributionId:
+    Description: ID de la distribución CloudFront de media (para invalidaciones)
+    Value: !Ref MediaDistribution
+    Export:
+      Name: !Sub '${AWS::StackName}-MediaDistributionId'
+
+  MediaCloudFrontUrl:
+    Description: URL HTTPS del CDN de imágenes (usar como VITE_MEDIA_BUCKET_URL en el frontend)
+    Value: !Sub 'https://${MediaDistribution.DomainName}'
+    Export:
+      Name: !Sub '${AWS::StackName}-MediaCloudFrontUrl'

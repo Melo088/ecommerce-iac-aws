@@ -14,6 +14,7 @@ export default function Header() {
 
   const isProductPage  = useMatch('/product/:id')
   const isCartPage     = useMatch('/cart')
+  const isAdminPage    = useMatch('/admin')
   const categoryMatch  = useMatch('/category/:cat')
   const activeCategory = categoryMatch?.params?.cat ?? null
 
@@ -24,7 +25,8 @@ export default function Header() {
   }, [])
 
   function handleLeftClick() {
-    if (isProductPage || isCartPage) navigate(-1)
+    if (isAdminPage) navigate('/')
+    else if (isProductPage || isCartPage) navigate(-1)
     else toggleGrid()
   }
 
@@ -40,7 +42,7 @@ export default function Header() {
           onClick={handleLeftClick}
           className="text-2xl tracking-widest py-2 px-2 shrink-0 hover:opacity-40 transition-opacity"
         >
-          {(isProductPage || isCartPage) ? '<' : gridDense ? '+' : '<'}
+          {(isProductPage || isCartPage || isAdminPage) ? '<' : gridDense ? '+' : '<'}
         </button>
 
         {/* CENTER */}
@@ -63,12 +65,19 @@ export default function Header() {
                 </Link>
               ))}
               {auth ? (
-                <button
-                  onClick={() => { logout(); navigate('/') }}
-                  className="text-gray-300 hover:text-black transition-colors"
-                >
-                  LOGOUT
-                </button>
+                <>
+                  {auth.role === 'ADMIN' && (
+                    <Link to="/admin" className="text-gray-300 hover:text-black transition-colors">
+                      ADMIN
+                    </Link>
+                  )}
+                  <button
+                    onClick={() => { logout(); navigate('/') }}
+                    className="text-gray-300 hover:text-black transition-colors"
+                  >
+                    LOGOUT
+                  </button>
+                </>
               ) : (
                 <>
                   <Link to="/login" className="text-gray-300 hover:text-black transition-colors">LOGIN</Link>

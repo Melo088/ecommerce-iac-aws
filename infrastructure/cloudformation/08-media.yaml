@@ -113,9 +113,6 @@ Resources:
         - Key: Owner
           Value: !Ref Owner
 
-  # Política del bucket: solo CloudFront (OAC) puede leer los objetos.
-  # Los PUTs via presigned URL se autentican con la firma SigV4 del rol EC2,
-  # sin necesitar una entrada adicional en esta política.
   MediaBucketPolicy:
     Type: AWS::S3::BucketPolicy
     DependsOn: MediaDistribution
@@ -134,6 +131,16 @@ Resources:
               StringEquals:
                 AWS:SourceArn: !Sub
                   'arn:aws:cloudfront::${AWS::AccountId}:distribution/${MediaDistribution}'
+          - Sid: AllowEC2PutObject
+            Effect: Allow
+            Principal:
+              AWS:
+                - !Sub 'arn:aws:iam::${AWS::AccountId}:role/voclabs'
+                - !Sub 'arn:aws:iam::${AWS::AccountId}:role/AmazonSSMRoleForInstancesQuickSetup'
+            Action:
+              - s3:PutObject
+              - s3:PutObjectAcl
+            Resource: !Sub '${MediaBucket.Arn}/*'
 
 # ---------------------------------------------------------------------------
 # Outputs

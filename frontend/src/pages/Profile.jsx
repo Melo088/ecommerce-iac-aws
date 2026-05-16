@@ -16,9 +16,9 @@ function formatDate(iso) {
 }
 
 export default function Profile() {
-  const [user, setUser]       = useState(null)
-  const [orders, setOrders]   = useState([])
-  const [loading, setLoading] = useState(true)
+  const [user, setUser]         = useState(null)
+  const [orders, setOrders]     = useState([])
+  const [loading, setLoading]   = useState(true)
   const [expanded, setExpanded] = useState(null)
 
   useEffect(() => {
@@ -44,21 +44,21 @@ export default function Profile() {
   }
 
   return (
-    <main className="min-h-screen px-16 pt-24 pb-16">
-      <div className="max-w-6xl mx-auto grid grid-cols-2 gap-24">
+    <main className="min-h-screen px-6 pt-20 pb-10 md:px-16 md:pt-24 md:pb-16">
+      <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-12 md:gap-24">
 
         {/* LEFT — Profile summary */}
         <div>
-          <p className="text-sm tracking-widest uppercase mb-10">Profile</p>
+          <p className="text-sm tracking-widest uppercase mb-8 md:mb-10">Profile</p>
 
-          <div className="flex flex-col gap-8">
+          <div className="flex flex-col gap-6 md:gap-8">
             <div>
               <p className="text-xs tracking-widest uppercase text-gray-400 mb-2">Name</p>
               <p className="text-sm tracking-widest uppercase">{user?.name || '—'}</p>
             </div>
             <div>
               <p className="text-xs tracking-widest uppercase text-gray-400 mb-2">Email</p>
-              <p className="text-sm tracking-widest">{user?.email || '—'}</p>
+              <p className="text-sm tracking-widest break-all">{user?.email || '—'}</p>
             </div>
             <div>
               <p className="text-xs tracking-widest uppercase text-gray-400 mb-2">Member Since</p>
@@ -69,17 +69,15 @@ export default function Profile() {
 
         {/* RIGHT — Order history */}
         <div>
-          <p className="text-sm tracking-widest uppercase mb-10">Order History</p>
+          <p className="text-sm tracking-widest uppercase mb-8 md:mb-10">Order History</p>
 
           {orders.length === 0 ? (
             <p className="text-sm tracking-widest text-gray-400 uppercase">No orders yet</p>
           ) : (
-            <div className="flex flex-col gap-5">
+            <div className="flex flex-col gap-4 md:gap-5">
               {orders.map(order => {
                 const isOpen = expanded === order.id
-                const thumb = order.items[0]
-                  ? getImageUrl(order.items[0].productId)
-                  : null
+                const thumb  = order.items[0] ? getImageUrl(order.items[0].productId) : null
 
                 return (
                   <div
@@ -88,37 +86,37 @@ export default function Profile() {
                     onClick={() => toggle(order.id)}
                   >
                     {/* Card header */}
-                    <div className="flex items-center gap-5 p-5">
+                    <div className="flex items-center gap-4 p-4 md:gap-5 md:p-5">
                       {thumb && (
                         <img
                           src={thumb}
                           alt=""
-                          className="w-16 h-16 object-contain bg-gray-50 shrink-0"
+                          className="w-14 h-14 md:w-16 md:h-16 object-contain bg-gray-50 shrink-0"
                         />
                       )}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
                           <p className="text-sm tracking-widest uppercase">#{order.shortId}</p>
-                          <p className={`text-xs tracking-widest uppercase ${STATUS_STYLES[order.status] ?? 'text-gray-400'}`}>
+                          <p className={`text-xs tracking-widest uppercase shrink-0 ${STATUS_STYLES[order.status] ?? 'text-gray-400'}`}>
                             {order.status}
                           </p>
                         </div>
                         <div className="flex items-center justify-between gap-2 mt-2">
                           <p className="text-xs tracking-widest text-gray-400">{formatDate(order.createdAt)}</p>
-                          <p className="text-sm tracking-widest">${Number(order.total).toFixed(2)}</p>
+                          <p className="text-sm tracking-widest shrink-0">${Number(order.total).toFixed(2)}</p>
                         </div>
                       </div>
                     </div>
 
                     {/* Expanded item list */}
                     {isOpen && order.items.length > 0 && (
-                      <div className="border-t border-gray-100 px-5 pb-5 pt-4 flex flex-col gap-4">
+                      <div className="border-t border-gray-100 px-4 pb-4 pt-3 md:px-5 md:pb-5 md:pt-4 flex flex-col gap-3 md:gap-4">
                         {order.items.map((item, idx) => (
-                          <div key={idx} className="flex items-center gap-4">
+                          <div key={idx} className="flex items-center gap-3 md:gap-4">
                             <img
                               src={getImageUrl(item.productId)}
                               alt={item.productName}
-                              className="w-14 h-14 object-contain bg-gray-50 shrink-0"
+                              className="w-12 h-12 md:w-14 md:h-14 object-contain bg-gray-50 shrink-0"
                             />
                             <div className="flex-1 min-w-0">
                               <p className="text-xs tracking-widest uppercase truncate">{item.productName}</p>

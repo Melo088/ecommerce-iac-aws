@@ -25,7 +25,7 @@ export default function Cart() {
   const { auth } = useAuth()
   const { items, cartLoading, increaseQty, decreaseQty, removeItem } = useCart()
   const navigate = useNavigate()
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading]       = useState(false)
   const [preferenceId, setPreferenceId] = useState(null)
 
   useEffect(() => {
@@ -63,46 +63,52 @@ export default function Cart() {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center px-16 pt-24 pb-12">
-      <div className="w-full max-w-6xl grid grid-cols-2 gap-24">
+    <main className="min-h-screen px-6 pt-20 pb-10 md:px-16 md:pt-24 md:pb-12">
+      <div className="w-full max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-24">
 
         {/* LEFT — Items */}
         <div>
           {items.map(item => {
             const lineTotal = (Number(item.price) || 0) * item.quantity
             return (
-              <div key={item.id} className="flex items-center justify-between border-b border-gray-100 py-6 gap-5">
+              <div key={item.id} className="flex items-center border-b border-gray-100 py-5 gap-4">
                 <img
                   src={`/products/${item.productId}/main.png`}
                   alt={item.productName}
-                  className="w-20 h-20 object-contain bg-gray-50 shrink-0"
+                  className="w-16 h-16 md:w-20 md:h-20 object-contain bg-gray-50 shrink-0"
                 />
+
+                {/* name + controls */}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm tracking-widest uppercase truncate">{item.productName}</p>
-                  <div className="flex items-center gap-4 mt-3">
-                    <button
-                      onClick={() => decreaseQty(item)}
-                      className="text-sm tracking-widest text-gray-400 hover:text-black transition-colors"
-                    >
-                      −
-                    </button>
-                    <span className="text-sm tracking-widest">{item.quantity}</span>
-                    <button
-                      onClick={() => increaseQty(item)}
-                      className="text-sm tracking-widest text-gray-400 hover:text-black transition-colors"
-                    >
-                      +
-                    </button>
+                  <p className="text-sm tracking-widest uppercase truncate mb-3">{item.productName}</p>
+                  <div className="flex items-center justify-between">
+                    {/* qty */}
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => decreaseQty(item)}
+                        className="text-sm tracking-widest text-gray-400 hover:text-black transition-colors w-6 text-center"
+                      >
+                        −
+                      </button>
+                      <span className="text-sm tracking-widest w-4 text-center">{item.quantity}</span>
+                      <button
+                        onClick={() => increaseQty(item)}
+                        className="text-sm tracking-widest text-gray-400 hover:text-black transition-colors w-6 text-center"
+                      >
+                        +
+                      </button>
+                    </div>
+                    {/* price + remove */}
+                    <div className="flex items-center gap-4 shrink-0">
+                      <span className="text-sm tracking-widest">${lineTotal.toFixed(2)}</span>
+                      <button
+                        onClick={() => removeItem(item)}
+                        className="text-xs tracking-widest text-gray-300 hover:text-black transition-colors uppercase"
+                      >
+                        Remove
+                      </button>
+                    </div>
                   </div>
-                </div>
-                <div className="flex flex-col items-end gap-2 shrink-0">
-                  <span className="text-sm tracking-widest">${lineTotal.toFixed(2)}</span>
-                  <button
-                    onClick={() => removeItem(item)}
-                    className="text-xs tracking-widest text-gray-300 hover:text-black transition-colors uppercase"
-                  >
-                    Remove
-                  </button>
                 </div>
               </div>
             )
@@ -110,19 +116,19 @@ export default function Cart() {
         </div>
 
         {/* RIGHT — Summary + action */}
-        <div className="flex flex-col justify-between">
+        <div className="flex flex-col justify-between gap-8">
           <div className="flex flex-col gap-4">
             <div className="flex justify-between">
               <span className="text-sm tracking-widest uppercase text-gray-400">Subtotal</span>
               <span className="text-sm tracking-widest">${subtotal.toFixed(2)}</span>
             </div>
-            <div className="flex justify-between pt-5 mt-2 border-t border-gray-200">
+            <div className="flex justify-between pt-5 border-t border-gray-200">
               <span className="text-sm tracking-widest uppercase">Total</span>
               <span className="text-sm tracking-widest">${subtotal.toFixed(2)}</span>
             </div>
           </div>
 
-          <div className="mt-10">
+          <div>
             {preferenceId ? (
               <Wallet
                 initialization={{ preferenceId }}

@@ -10,7 +10,6 @@ function ProductCard({ product }) {
 
   return (
     <Link to={`/product/${product.id}`} className="block group cursor-pointer">
-      {/* image — no bottom padding so name sits ≤ 8px below */}
       <div className="aspect-[4/5] flex items-center justify-center px-6 pt-6 pb-0 overflow-hidden">
         {imgError ? (
           <div className="w-full h-full bg-[#f0f0f0]" />
@@ -24,7 +23,6 @@ function ProductCard({ product }) {
           />
         )}
       </div>
-      {/* name — mt-2 = 8px from image container bottom */}
       <p className="text-sm tracking-widest text-center mt-2 pb-4 text-black">
         {product.name}
       </p>
@@ -48,16 +46,20 @@ export default function Home() {
 
   if (loading) {
     return (
-      <main className="pt-28 min-h-screen flex items-center justify-center">
+      <main className="pt-16 md:pt-28 min-h-screen flex items-center justify-center">
         <span className="text-sm tracking-widest text-gray-300">LOADING</span>
       </main>
     )
   }
 
   return (
-    <main className="pt-28">
+    <main className="pt-16 md:pt-28">
       <LayoutGroup>
-        <div className={`grid transition-none ${gridDense ? 'grid-cols-6' : 'grid-cols-3'}`}>
+        <div className={`grid transition-none ${
+          gridDense
+            ? 'grid-cols-3 md:grid-cols-4 lg:grid-cols-6'
+            : 'grid-cols-2 md:grid-cols-3'
+        }`}>
           {products.map(product => (
             <motion.div
               key={product.id}

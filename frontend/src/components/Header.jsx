@@ -64,8 +64,12 @@ export default function Header() {
                   {cat}
                 </Link>
               ))}
+              <span className="text-gray-200 select-none">|</span>
               {auth ? (
                 <>
+                  <Link to="/profile" className="text-gray-300 hover:text-black transition-colors">
+                    PROFILE
+                  </Link>
                   {auth.role === 'ADMIN' && (
                     <Link to="/admin" className="text-gray-300 hover:text-black transition-colors">
                       ADMIN

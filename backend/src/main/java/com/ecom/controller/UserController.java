@@ -5,6 +5,7 @@ import com.ecom.dto.UserResponse;
 import com.ecom.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -21,6 +22,12 @@ public class UserController {
     @ResponseStatus(HttpStatus.CREATED)
     public UserResponse register(@Valid @RequestBody UserRequest request) {
         return userService.register(request);
+    }
+
+    @GetMapping("/me")
+    public UserResponse me(Authentication authentication) {
+        Long userId = (Long) authentication.getPrincipal();
+        return userService.findById(userId);
     }
 
     @GetMapping("/{id}")

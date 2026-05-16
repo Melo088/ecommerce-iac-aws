@@ -15,6 +15,7 @@ import Checkout from './pages/Checkout'
 import PaymentSuccess from './pages/PaymentSuccess'
 import PaymentFailure from './pages/PaymentFailure'
 import AdminDashboard from './pages/admin/AdminDashboard'
+import Profile from './pages/Profile'
 
 // 1. Creamos este subcomponente para poder acceder a useLocation()
 function AnimatedRoutes() {
@@ -37,6 +38,7 @@ function AnimatedRoutes() {
         <Route element={<RequireAuth />}>
           <Route path="/cart"     element={<Cart />} />
           <Route path="/checkout" element={<Checkout />} />
+          <Route path="/profile"  element={<Profile />} />
         </Route>
 
         {/* Rutas exclusivas de admin */}

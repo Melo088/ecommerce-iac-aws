@@ -3,7 +3,9 @@ package com.ecom.service.impl;
 import com.ecom.dto.CartItemResponse;
 import com.ecom.dto.PaymentCreateResponse;
 import com.ecom.model.Order;
+import com.ecom.model.OrderItem;
 import com.ecom.repository.CartItemRepository;
+import com.ecom.repository.OrderItemRepository;
 import com.ecom.repository.OrderRepository;
 import com.ecom.service.CartService;
 import com.ecom.service.PaymentService;
@@ -43,6 +45,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final CartService cartService;
     private final CartItemRepository cartItemRepository;
     private final OrderRepository orderRepository;
+    private final OrderItemRepository orderItemRepository;
 
     @Value("${app.backend-url:http://localhost:8080}")
     private String backendUrl;
@@ -52,10 +55,12 @@ public class PaymentServiceImpl implements PaymentService {
 
     public PaymentServiceImpl(CartService cartService,
                               CartItemRepository cartItemRepository,
-                              OrderRepository orderRepository) {
+                              OrderRepository orderRepository,
+                              OrderItemRepository orderItemRepository) {
         this.cartService = cartService;
         this.cartItemRepository = cartItemRepository;
         this.orderRepository = orderRepository;
+        this.orderItemRepository = orderItemRepository;
     }
 
     @Override
@@ -117,6 +122,17 @@ public class PaymentServiceImpl implements PaymentService {
             order.setStatus("PENDING");
             order.setMpPreferenceId(preference.getId());
             orderRepository.save(order);
+
+            List<OrderItem> snapshot = cartItems.stream().map(item -> {
+                OrderItem oi = new OrderItem();
+                oi.setOrderId(orderId);
+                oi.setProductId(item.productId());
+                oi.setProductName(item.productName());
+                oi.setPrice(item.price());
+                oi.setQuantity(item.quantity());
+                return oi;
+            }).collect(Collectors.toList());
+            orderItemRepository.saveAll(snapshot);
 
             return new PaymentCreateResponse(preference.getId(), orderId);
 

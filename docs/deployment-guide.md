@@ -5,6 +5,20 @@ Tiempo estimado total: **45–60 minutos**.
 
 ---
 
+## Scripts disponibles
+
+| Script | Descripción |
+|---|---|
+| `set-aws-session.sh` | Configura credenciales AWS Academy en la sesión actual |
+| `upload-templates.sh` | Sube templates CloudFormation a S3 y crea el key pair EC2 |
+| `deploy-all.sh` | Despliega toda la infraestructura en orden |
+| `upload-media.sh <bucket>` | Sube imágenes de productos al bucket S3 de media |
+| `stress-test.sh` | Prueba de carga para verificar el auto scaling |
+| `stress-test.sh --monitor-only` | Monitorea métricas de CPU y ASG sin lanzar carga |
+| `demo-check.sh` | Verifica que toda la infraestructura está operativa antes de presentar |
+
+---
+
 ## Prerrequisitos
 
 | Herramienta | Versión mínima | Verificar |
@@ -97,6 +111,12 @@ El script solicita cuatro valores de forma interactiva:
 | `ecom-alb` | `04-alb.yaml` | ~3 min |
 | `ecom-asg` | `05-autoscaling.yaml` | ~5 min |
 | `ecom-cw` | `06-cloudwatch.yaml` | ~1 min |
+| `ecom-media` | `08-media.yaml` | ~10–15 min |
+| `ecom-frontend` | `07-frontend.yaml` | ~10–15 min |
+
+`deploy-all.sh` despliega **todos** los stacks incluyendo `ecom-media` (bucket S3 + CloudFront para imágenes de productos, con upload automático vía `upload-media.sh`) y `ecom-frontend` (hosting React + distribución CloudFront del backend). No es necesario ejecutar esos pasos por separado.
+
+> **Pasos manuales que quedan después de este script:** seed de RDS (Paso 4), compilar y subir el frontend (Paso 5), y actualizar el ASG con las URLs de CloudFront (Paso 6).
 
 > **Nota SNS:** AWS enviará un email de confirmación a la dirección ingresada. Hacer clic en "Confirm subscription" para activar las alertas.
 
@@ -112,39 +132,7 @@ aws cloudformation describe-stacks \
 
 ---
 
-## Paso 3.5 — Desplegar bucket de media y subir imágenes de productos
-
-### Desplegar el stack `ecom-media`
-
-```bash
-ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-
-aws cloudformation create-stack \
-  --stack-name ecom-media \
-  --template-url https://s3.us-east-1.amazonaws.com/ecom-artifacts-prod-${ACCOUNT_ID}/cloudformation/08-media.yaml \
-  --region us-east-1
-
-aws cloudformation wait stack-create-complete --stack-name ecom-media
-```
-
-Tiempo estimado: **10–15 minutos** (CloudFront tarda en provisionarse).
-
-### Subir imágenes al bucket
-
-```bash
-MEDIA_BUCKET=$(aws cloudformation describe-stacks \
-  --stack-name ecom-media \
-  --query 'Stacks[0].Outputs[?OutputKey==`MediaBucketName`].OutputValue' \
-  --output text)
-
-./infrastructure/scripts/upload-media.sh "$MEDIA_BUCKET"
-```
-
-El script itera sobre `frontend/public/products/{N}/` y sube:
-- `main.png` → `s3://<bucket>/products/{N}/main.png`
-- `gallery/*` → `s3://<bucket>/products/{N}/gallery/{filename}` (si existe la carpeta)
-
-### Seed de productos en RDS (datos iniciales)
+## Paso 4 — Seed de RDS (datos iniciales)
 
 Para cargar productos en la base de datos de producción, conectarse al RDS mediante el Bastion Host:
 
@@ -166,46 +154,6 @@ psql -h $DB_ENDPOINT -U ecomadmin -d ecomdb -f /tmp/data.sql
 ```
 
 > El archivo `data.sql` se usa automáticamente en local (perfil H2), pero en RDS hay que ejecutarlo manualmente vía Bastion porque las instancias EC2 del ASG están en subredes privadas sin acceso directo.
-
-### Guardar la URL del CDN (necesaria en Paso 5)
-
-```bash
-MEDIA_CF=$(aws cloudformation describe-stacks \
-  --stack-name ecom-media \
-  --query 'Stacks[0].Outputs[?OutputKey==`MediaCloudFrontUrl`].OutputValue' \
-  --output text)
-echo "VITE_MEDIA_BUCKET_URL=${MEDIA_CF}"
-```
-
----
-
-## Paso 4 — Desplegar el hosting del frontend (S3 + CloudFront)
-
-```bash
-ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-
-aws cloudformation create-stack \
-  --stack-name ecom-frontend \
-  --template-url https://s3.us-east-1.amazonaws.com/ecom-artifacts-prod-${ACCOUNT_ID}/cloudformation/07-frontend.yaml \
-  --parameters ParameterKey=AlbStackName,ParameterValue=ecom-alb \
-  --region us-east-1
-
-aws cloudformation wait stack-create-complete --stack-name ecom-frontend
-```
-
-Tiempo estimado: **10–15 minutos** (CloudFront tarda en provisionarse globalmente).
-
-Guardar las URLs de salida para los pasos siguientes:
-```bash
-aws cloudformation describe-stacks --stack-name ecom-frontend \
-  --query 'Stacks[0].Outputs'
-```
-
-Outputs relevantes:
-- `BackendCloudFrontUrl` — URL HTTPS del backend (usar como `VITE_API_URL`)
-- `FrontendCloudFrontUrl` — URL HTTPS del frontend (usar como `APP_FRONTEND_URL`)
-- `FrontendBucketName` — bucket donde subir el build
-- `FrontendDistributionId` — ID de la distribución (para invalidaciones)
 
 ---
 
@@ -239,9 +187,10 @@ cd ..
 
 ## Paso 6 — Actualizar el ASG con las URLs de CloudFront (rolling update)
 
-Las instancias EC2 actuales tienen `APP_BACKEND_URL` y `APP_FRONTEND_URL` vacíos (fueron lanzadas antes de crear CloudFront). Actualizar el stack y reemplazar las instancias:
+Las instancias EC2 actuales tienen `APP_BACKEND_URL` y `APP_FRONTEND_URL` vacíos (fueron lanzadas antes de crear CloudFront). Actualizar el stack con el template en S3 (que incluye los parámetros `S3MediaBucket` y `AwsRegion`) y reemplazar las instancias:
 
 ```bash
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 BACKEND_CF=$(aws cloudformation describe-stacks --stack-name ecom-frontend \
   --query 'Stacks[0].Outputs[?OutputKey==`BackendCloudFrontUrl`].OutputValue' --output text)
 FRONTEND_CF=$(aws cloudformation describe-stacks --stack-name ecom-frontend \
@@ -249,10 +198,12 @@ FRONTEND_CF=$(aws cloudformation describe-stacks --stack-name ecom-frontend \
 
 aws cloudformation update-stack \
   --stack-name ecom-asg \
-  --use-previous-template \
+  --template-url https://s3.us-east-1.amazonaws.com/ecom-artifacts-prod-${ACCOUNT_ID}/cloudformation/05-autoscaling.yaml \
   --parameters \
     ParameterKey=BackendPublicUrl,ParameterValue=${BACKEND_CF} \
     ParameterKey=FrontendPublicUrl,ParameterValue=${FRONTEND_CF} \
+    ParameterKey=S3MediaBucket,ParameterValue=ecom-media-prod-${ACCOUNT_ID} \
+    ParameterKey=AwsRegion,ParameterValue=us-east-1 \
     ParameterKey=KeyName,UsePreviousValue=true \
     ParameterKey=IamInstanceProfile,UsePreviousValue=true \
     ParameterKey=S3BucketName,UsePreviousValue=true \
@@ -349,6 +300,48 @@ Ver logs de la aplicación Spring Boot:
 ```bash
 journalctl -u ecom-app -f
 ```
+
+---
+
+## Prueba de Auto Scaling
+
+Para verificar que el ASG escala correctamente bajo carga:
+
+```bash
+./infrastructure/scripts/stress-test.sh
+```
+
+Para monitorear el scale-in después de que baja la carga (sin generar más estrés):
+
+```bash
+./infrastructure/scripts/stress-test.sh --monitor-only
+```
+
+El Auto Scaling Group está configurado para:
+- **Scale-out:** cuando CPU supera el 50% → agrega 1 instancia (hasta máximo 3)
+- **Scale-in:** cuando la CPU baja de los umbrales → tarda **5–15 minutos** en reducir las instancias después de que la carga se normaliza (cooldown de CloudWatch)
+
+El script imprime una tabla en tiempo real con CPU promedio, instancias deseadas e instancias InService, y reporta `PASS` cuando detecta el scale-out.
+
+---
+
+## Verificación pre-presentación
+
+Antes de la presentación, verificar que toda la infraestructura está operativa en ~30 segundos:
+
+```bash
+./infrastructure/scripts/demo-check.sh
+```
+
+El script comprueba en paralelo: credenciales AWS, estado de los 9 stacks CloudFormation, health check del backend, accesibilidad del frontend, target health del ALB, instancias InService del ASG y objetos en el bucket de media. Imprime ✓ o ✗ por cada componente y termina con `✓ LISTO PARA PRESENTAR` o lista los componentes con fallo.
+
+**Flujo recomendado del showcase:**
+1. `demo-check.sh` — confirmar que todo está verde
+2. Mostrar el catálogo y navegación por categorías
+3. Agregar productos al carrito y completar un checkout simulado
+4. Ver el historial de pedidos en la página de perfil
+5. Mostrar el panel de administración (`/admin`)
+6. Lanzar `stress-test.sh` para demostrar el auto scaling en vivo
 
 ---
 

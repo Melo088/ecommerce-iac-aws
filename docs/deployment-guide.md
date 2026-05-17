@@ -53,7 +53,7 @@ El script solicita `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` y `AWS_SESSION_T
 ## Paso 1 — Subir templates y preparar bucket S3
 
 ```bash
-./infrastructure/scripts/upload-templates.sh prod
+./infrastructure/scripts/upload-templates.sh
 ```
 
 Este script:
@@ -68,9 +68,7 @@ Al finalizar imprime las URLs HTTPS de cada template en S3 y un comando de ejemp
 ## Paso 2 — Compilar el backend y subir el JAR
 
 ```bash
-cd backend
-./mvnw clean package -DskipTests
-cd ..
+cd backend && mvn clean package -DskipTests && cd ..
 ```
 
 El JAR se genera en `backend/target/ecom-app.jar` (nombre configurado con `<finalName>ecom-app</finalName>` en `pom.xml`).
@@ -88,7 +86,7 @@ aws s3 cp backend/target/ecom-app.jar \
 ## Paso 3 — Desplegar la infraestructura completa
 
 ```bash
-./infrastructure/scripts/deploy-all.sh prod
+./infrastructure/scripts/deploy-all.sh
 ```
 
 El script solicita cuatro valores de forma interactiva:
@@ -137,20 +135,34 @@ aws cloudformation describe-stacks \
 Para cargar productos en la base de datos de producción, conectarse al RDS mediante el Bastion Host:
 
 ```bash
-# Desde tu máquina local, copiar el SQL al Bastion
+# Obtener IP pública del Bastion desde el stack ecom-asg
+BASTION_IP=$(aws cloudformation describe-stacks \
+  --stack-name ecom-asg \
+  --query "Stacks[0].Outputs[?OutputKey=='BastionPublicIp'].OutputValue" \
+  --output text)
+echo "Bastion: $BASTION_IP"
+
+# Copiar el SQL al Bastion
 scp -i ~/.ssh/ecom-keypair.pem backend/src/main/resources/data.sql \
-  ec2-user@<BASTION_IP>:/tmp/data.sql
+  ec2-user@${BASTION_IP}:/tmp/data.sql
 
 # SSH al Bastion
-ssh -i ~/.ssh/ecom-keypair.pem ec2-user@<BASTION_IP>
+ssh -i ~/.ssh/ecom-keypair.pem ec2-user@${BASTION_IP}
+```
 
-# Desde el Bastion, ejecutar el script contra RDS
+Dentro del Bastion, obtener el endpoint de RDS y ejecutar el seed:
+
+```bash
+# Dentro del Bastion
 DB_ENDPOINT=$(aws cloudformation describe-stacks \
   --stack-name ecom-rds \
   --query 'Stacks[0].Outputs[?OutputKey==`DBEndpoint`].OutputValue' \
   --output text)
 
 psql -h $DB_ENDPOINT -U ecomadmin -d ecomdb -f /tmp/data.sql
+# Password: el que ingresaste en deploy-all.sh (DBPassword)
+# Resultado esperado: INSERT 0 62
+exit
 ```
 
 > El archivo `data.sql` se usa automáticamente en local (perfil H2), pero en RDS hay que ejecutarlo manualmente vía Bastion porque las instancias EC2 del ASG están en subredes privadas sin acceso directo.
@@ -162,19 +174,24 @@ psql -h $DB_ENDPOINT -U ecomadmin -d ecomdb -f /tmp/data.sql
 Con las URLs de CloudFront disponibles, compilar el frontend apuntando al backend correcto:
 
 ```bash
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 BACKEND_CF=$(aws cloudformation describe-stacks --stack-name ecom-frontend \
   --query 'Stacks[0].Outputs[?OutputKey==`BackendCloudFrontUrl`].OutputValue' --output text)
 FRONTEND_BUCKET=$(aws cloudformation describe-stacks --stack-name ecom-frontend \
   --query 'Stacks[0].Outputs[?OutputKey==`FrontendBucketName`].OutputValue' --output text)
 FRONTEND_DIST=$(aws cloudformation describe-stacks --stack-name ecom-frontend \
   --query 'Stacks[0].Outputs[?OutputKey==`FrontendDistributionId`].OutputValue' --output text)
-
 MEDIA_CF=$(aws cloudformation describe-stacks --stack-name ecom-media \
   --query 'Stacks[0].Outputs[?OutputKey==`MediaCloudFrontUrl`].OutputValue' --output text)
 
+echo "Backend CF: $BACKEND_CF"
+echo "Media CF:   $MEDIA_CF"
+echo "Frontend Bucket: $FRONTEND_BUCKET"
+echo "Frontend Dist:   $FRONTEND_DIST"
+
 cd frontend
 VITE_API_URL=${BACKEND_CF} \
-VITE_MP_PUBLIC_KEY=<public-key-de-mercadopago> \
+VITE_MP_PUBLIC_KEY=<tu-public-key-de-mercadopago> \
 VITE_MEDIA_BUCKET_URL=${MEDIA_CF} \
 npm run build
 
@@ -218,19 +235,20 @@ aws cloudformation update-stack \
     ParameterKey=AlbStackName,UsePreviousValue=true
 
 aws cloudformation wait stack-update-complete --stack-name ecom-asg
+echo "✓ ASG actualizado"
 ```
 
 Iniciar el reemplazo gradual de instancias (sin downtime):
 ```bash
 aws autoscaling start-instance-refresh \
-  --auto-scaling-group-name ecom-asg \
+  --auto-scaling-group-name ecom-asg-prod \
   --preferences '{"MinHealthyPercentage": 50, "InstanceWarmup": 300}'
 ```
 
 Monitorear hasta `Status: Successful`:
 ```bash
 aws autoscaling describe-instance-refreshes \
-  --auto-scaling-group-name ecom-asg \
+  --auto-scaling-group-name ecom-asg-prod \
   --query 'InstanceRefreshes[0].{Status:Status,Porcentaje:PercentageComplete}'
 ```
 
@@ -239,27 +257,10 @@ aws autoscaling describe-instance-refreshes \
 ## Paso 7 — Verificación end-to-end
 
 ```bash
-BACKEND_CF=$(aws cloudformation describe-stacks --stack-name ecom-frontend \
-  --query 'Stacks[0].Outputs[?OutputKey==`BackendCloudFrontUrl`].OutputValue' --output text)
-FRONTEND_CF=$(aws cloudformation describe-stacks --stack-name ecom-frontend \
-  --query 'Stacks[0].Outputs[?OutputKey==`FrontendCloudFrontUrl`].OutputValue' --output text)
-
-echo "Frontend: ${FRONTEND_CF}"
-echo "Backend:  ${BACKEND_CF}"
-
-# Health check del backend
-curl -s ${BACKEND_CF}/api/v1/health
-
-# Test del endpoint de webhook
-curl -s -X POST ${BACKEND_CF}/api/v1/payments/webhook \
-  -H "Content-Type: application/json" \
-  -d '{"type":"payment","data":{"id":"test-123"}}'
+./infrastructure/scripts/demo-check.sh
 ```
 
-Configurar la URL de notificación en el panel de MercadoPago (sandbox):
-```
-https://<backend-cloudfront-domain>/api/v1/payments/webhook
-```
+> El script imprime las URLs del frontend, admin y backend al finalizar, junto con el estado de cada componente de la infraestructura.
 
 ---
 
@@ -278,7 +279,7 @@ aws s3 cp backend/target/ecom-app.jar \
 
 # 3. Reemplazar instancias (descargan el nuevo JAR al arrancar)
 aws autoscaling start-instance-refresh \
-  --auto-scaling-group-name ecom-asg \
+  --auto-scaling-group-name ecom-asg-prod \
   --preferences '{"MinHealthyPercentage": 50, "InstanceWarmup": 300}'
 ```
 

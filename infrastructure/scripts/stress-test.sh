@@ -14,7 +14,7 @@ ASG_NAME="ecom-asg-prod"
 BASTION_SG="ecom-sg-bastion-prod"
 KEY="$HOME/.ssh/ecom-keypair.pem"
 SSH_USER="ec2-user"
-STRESS_DURATION=180
+STRESS_DURATION=300
 POLL_INTERVAL=20
 MONITOR_ONLY=false
 
@@ -101,10 +101,13 @@ launch_stress() {
 
   log "Conectando: local -> Bastion ($BASTION_IP) -> App ($APP_IP) via ProxyJump..."
 
+  eval $(ssh-agent) >/dev/null 2>&1
+  ssh-add ~/.ssh/ecom-keypair.pem 2>/dev/null
+
   ssh $ssh_opts $proxy "${SSH_USER}@${APP_IP}" \
     "which stress >/dev/null 2>&1 \
        || sudo dnf install stress -y -q; \
-     nohup stress --cpu 2 --timeout ${STRESS_DURATION} \
+     nohup stress --cpu 4 --timeout ${STRESS_DURATION} \
        >/tmp/stress.log 2>&1 </dev/null &
      echo \"stress PID: \$!\"" \
     && log "stress lanzado en $APP_IP (timeout: ${STRESS_DURATION}s)" \

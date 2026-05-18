@@ -314,7 +314,34 @@ sequenceDiagram
 
 ---
 
-## 10. Stacks CloudFormation — Orden de despliegue
+## 10. Estrategia de Tagging
+
+Todos los recursos de la infraestructura llevan tres etiquetas obligatorias definidas en cada template CloudFormation. Aplicar tags de forma consistente permite filtrar costos en AWS Cost Explorer, identificar recursos huerfanos y organizar la infraestructura por entorno.
+
+| Tag | Valor | Proposito |
+|---|---|---|
+| `Project` | `ecommerce-iac-aws` | Agrupa todos los recursos del proyecto independientemente del entorno |
+| `Environment` | `prod` | Identifica el entorno de despliegue (`dev`, `staging`, `prod`) |
+| `Owner` | `Melo088-Esteban-GV` | Identifica al equipo responsable del recurso |
+
+Los tags se aplican a todos los tipos de recursos que lo soportan: instancias EC2, volumenes EBS, grupos de seguridad, subredes, VPC, RDS, buckets S3, distribuciones CloudFront, alarmas CloudWatch, topics SNS y trails de CloudTrail.
+
+En el caso del Auto Scaling Group, los tags incluyen `PropagateAtLaunch: true` para que cada instancia lanzada automaticamente herede las mismas etiquetas sin intervencion manual.
+
+```yaml
+# Ejemplo de tags en CloudFormation (patron aplicado en todos los templates)
+Tags:
+  - Key: Project
+    Value: ecommerce-iac-aws
+  - Key: Environment
+    Value: !Ref Environment   # parametro del stack, valor: prod
+  - Key: Owner
+    Value: !Ref Owner         # parametro del stack, valor: Melo088-Esteban-GV
+```
+
+---
+
+## 11. Stacks CloudFormation — Orden de despliegue
 
 | Orden | Stack | Template | Exporta |
 |---|---|---|---|
@@ -333,7 +360,7 @@ sequenceDiagram
 
 ---
 
-## 11. Limitaciones del sandbox
+## 12. Limitaciones del sandbox
 
 | Restricción | Impacto |
 |---|---|

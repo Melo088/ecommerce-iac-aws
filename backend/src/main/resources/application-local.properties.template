@@ -1,0 +1,32 @@
+# Perfil local — copia este archivo como application-local.properties y completa los valores.
+# Este archivo NO debe commitearse (esta en .gitignore).
+
+# ---- Base de datos (H2 en memoria para desarrollo local) --------------------
+spring.datasource.url=jdbc:h2:mem:ecomdb
+spring.datasource.username=sa
+spring.datasource.password=
+spring.datasource.driver-class-name=org.h2.Driver
+spring.jpa.hibernate.ddl-auto=create-drop
+spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.H2Dialect
+spring.h2.console.enabled=true
+spring.h2.console.path=/h2-console
+
+# ---- JWT --------------------------------------------------------------------
+# Minimo 32 caracteres. Puede ser cualquier string largo y aleatorio.
+jwt.secret=CAMBIA_ESTO_POR_UN_SECRETO_LARGO_Y_ALEATORIO_DE_AL_MENOS_32_CHARS
+jwt.expiration=86400000
+
+# ---- MercadoPago ------------------------------------------------------------
+# Access token del vendedor de prueba (prefijo APP_USR-).
+# Crear en developers.mercadopago.com -> Cuentas de prueba -> Vendedor.
+mercadopago.access-token=APP_USR-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+
+# URLs de back y front para las back_urls de MercadoPago.
+# En local usar ngrok para que el webhook llegue; de lo contrario dejar localhost.
+app.backend-url=http://localhost:8080
+app.frontend-url=http://localhost:5173
+
+# ---- S3 media (opcional en local) -------------------------------------------
+# Dejar vacio para desactivar presigned URLs; las imagenes no cargaran desde S3.
+aws.region=us-east-1
+s3.media-bucket=

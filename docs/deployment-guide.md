@@ -285,22 +285,79 @@ aws autoscaling start-instance-refresh \
 
 ---
 
-## Acceso administrativo a EC2 (Systems Manager Session Manager)
+## Acceso administrativo a EC2
 
-Sin necesidad de SSH ni de exponer el Bastion:
+### Opción A. SSH vía Bastion Host
+
+Método documentado en los pasos anteriores (seed de RDS, troubleshooting). Requiere el archivo `~/.ssh/ecom-keypair.pem` y la IP pública del Bastion.
 
 ```bash
-INSTANCE_ID=$(aws autoscaling describe-auto-scaling-groups \
-  --auto-scaling-group-names ecom-asg \
+BASTION_IP=$(aws cloudformation describe-stacks \
+  --stack-name ecom-asg \
+  --query "Stacks[0].Outputs[?OutputKey=='BastionPublicIp'].OutputValue" \
+  --output text)
+
+# Acceso directo al Bastion
+ssh -i ~/.ssh/ecom-keypair.pem ec2-user@${BASTION_IP}
+
+# Acceso a instancia privada del ASG via ProxyJump
+PRIVATE_IP=$(aws autoscaling describe-auto-scaling-groups \
+  --auto-scaling-group-names ecom-asg-prod \
   --query 'AutoScalingGroups[0].Instances[0].InstanceId' --output text)
+
+ssh -i ~/.ssh/ecom-keypair.pem \
+    -o ProxyJump=ec2-user@${BASTION_IP} \
+    ec2-user@${PRIVATE_IP}
+```
+
+### Opción B. Systems Manager Session Manager (sin SSH)
+
+El IAM instance profile asignado a todas las instancias EC2 (`SsmRoleInstanceProfile`) incluye los permisos necesarios para SSM. No requiere abrir el puerto 22, no depende del Bastion y funciona directamente desde la AWS CLI.
+
+**Listar todas las instancias gestionadas por SSM:**
+```bash
+aws ssm describe-instance-information \
+  --query 'InstanceInformationList[*].{ID:InstanceId,Estado:PingStatus,IP:IPAddress}' \
+  --output table
+```
+
+**Abrir sesión interactiva en una instancia del ASG:**
+```bash
+INSTANCE_ID=$(aws autoscaling describe-auto-scaling-groups \
+  --auto-scaling-group-names ecom-asg-prod \
+  --query 'AutoScalingGroups[0].Instances[0].InstanceId' \
+  --output text)
 
 aws ssm start-session --target ${INSTANCE_ID}
 ```
 
-Ver logs de la aplicación Spring Boot:
+**Abrir sesión en el Bastion Host:**
 ```bash
-journalctl -u ecom-app -f
+BASTION_ID=$(aws ec2 describe-instances \
+  --filters "Name=tag:Name,Values=ecom-bastion-prod" \
+  --query 'Reservations[0].Instances[0].InstanceId' \
+  --output text)
+
+aws ssm start-session --target ${BASTION_ID}
 ```
+
+**Comandos útiles dentro de la sesión SSM:**
+```bash
+# Ver logs del servicio Spring Boot en tiempo real
+sudo journalctl -u ecom-app -f
+
+# Ver variables de entorno de la aplicación
+sudo cat /etc/ecom-app.env
+
+# Estado del servicio
+sudo systemctl status ecom-app
+
+# Verificar conectividad con RDS
+sudo -u ecom bash -c 'source /etc/ecom-app.env && \
+  nc -zv $(echo $SPRING_DATASOURCE_URL | grep -oP "(?<=//)[^:]+") 5432'
+```
+
+> SSM Session Manager es la opcion recomendada por AWS para acceso a instancias en subredes privadas. Al no requerir el puerto 22 abierto ni un bastion intermediario, reduce la superficie de ataque. Toda actividad queda registrada en CloudTrail bajo el evento `StartSession`.
 
 ---
 

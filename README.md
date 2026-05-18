@@ -16,6 +16,7 @@ Plataforma de e-commerce completa desplegada en AWS mediante Infrastructure as C
 - [Arquitectura](#arquitectura)
 - [Stack tecnologico](#stack-tecnologico)
 - [Estructura del repositorio](#estructura-del-repositorio)
+- [Configuracion de variables de entorno](#configuracion-de-variables-de-entorno)
 - [Inicio rapido . local](#inicio-rapido--local)
 - [Deploy en AWS](#deploy-en-aws)
 - [Scripts disponibles](#scripts-disponibles)
@@ -119,6 +120,43 @@ ecommerce-iac-aws/
         ├── components/          — Header, Navbar, RequireAuth, RequireAdmin
         └── context/             — AuthContext, CartContext, UIContext
 ```
+
+---
+
+## Configuracion de variables de entorno
+
+### Frontend
+
+```bash
+cp frontend/.env.example frontend/.env
+# Editar frontend/.env con los valores reales
+```
+
+| Variable | Local | AWS |
+|---|---|---|
+| `VITE_API_URL` | `http://localhost:8080` | URL de CloudFront Backend |
+| `VITE_MP_PUBLIC_KEY` | Public key del vendedor de prueba MP | Igual |
+| `VITE_MEDIA_BUCKET_URL` | _(vacio)_ | URL de CloudFront Media |
+
+### Backend
+
+```bash
+cp backend/src/main/resources/application-local.properties.template \
+   backend/src/main/resources/application-local.properties
+# Editar application-local.properties con los valores reales
+```
+
+| Variable | Descripcion |
+|---|---|
+| `jwt.secret` | Minimo 32 caracteres, cualquier string aleatorio |
+| `mercadopago.access-token` | Access token del vendedor de prueba (prefijo `APP_USR-`) |
+| `app.backend-url` | `http://localhost:8080` en local; URL ngrok para probar webhooks |
+| `app.frontend-url` | `http://localhost:5173` en local |
+| `s3.media-bucket` | Dejar vacio en local para desactivar imagenes desde S3 |
+
+> `application-local.properties` esta en `.gitignore`. El archivo `.template` es la referencia versionada de la estructura requerida.
+
+En AWS, todas estas variables las inyecta CloudFormation como parametros del stack `ecom-asg` directamente en `/etc/ecom-app.env` de cada instancia EC2. No se configuran manualmente.
 
 ---
 

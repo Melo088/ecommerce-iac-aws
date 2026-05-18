@@ -1,4 +1,4 @@
-# Guía de Despliegue — ecommerce-iac-aws
+# Guía de Despliegue. ecommerce-iac-aws
 
 Esta guía cubre el deploy completo desde cero en un entorno AWS Academy (sandbox).  
 Tiempo estimado total: **45–60 minutos**.
@@ -50,7 +50,7 @@ El script solicita `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` y `AWS_SESSION_T
 
 ---
 
-## Paso 1 — Subir templates y preparar bucket S3
+## Paso 1. Subir templates y preparar bucket S3
 
 ```bash
 ./infrastructure/scripts/upload-templates.sh
@@ -65,7 +65,7 @@ Al finalizar imprime las URLs HTTPS de cada template en S3 y un comando de ejemp
 
 ---
 
-## Paso 2 — Compilar el backend y subir el JAR
+## Paso 2. Compilar el backend y subir el JAR
 
 ```bash
 cd backend && mvn clean package -DskipTests && cd ..
@@ -83,7 +83,7 @@ aws s3 cp backend/target/ecom-app.jar \
 
 ---
 
-## Paso 3 — Desplegar la infraestructura completa
+## Paso 3. Desplegar la infraestructura completa
 
 ```bash
 ./infrastructure/scripts/deploy-all.sh
@@ -130,7 +130,7 @@ aws cloudformation describe-stacks \
 
 ---
 
-## Paso 4 — Seed de RDS (datos iniciales)
+## Paso 4. Seed de RDS (datos iniciales)
 
 Para cargar productos en la base de datos de producción, conectarse al RDS mediante el Bastion Host:
 
@@ -169,7 +169,7 @@ exit
 
 ---
 
-## Paso 5 — Compilar y subir el frontend
+## Paso 5. Compilar y subir el frontend
 
 Con las URLs de CloudFront disponibles, compilar el frontend apuntando al backend correcto:
 
@@ -202,7 +202,7 @@ cd ..
 
 ---
 
-## Paso 6 — Actualizar el ASG con las URLs de CloudFront (rolling update)
+## Paso 6. Actualizar el ASG con las URLs de CloudFront (rolling update)
 
 Las instancias EC2 actuales tienen `APP_BACKEND_URL` y `APP_FRONTEND_URL` vacíos (fueron lanzadas antes de crear CloudFront). Actualizar el stack con el template en S3 (que incluye los parámetros `S3MediaBucket` y `AwsRegion`) y reemplazar las instancias:
 
@@ -254,7 +254,7 @@ aws autoscaling describe-instance-refreshes \
 
 ---
 
-## Paso 7 — Verificación end-to-end
+## Paso 7. Verificación end-to-end
 
 ```bash
 ./infrastructure/scripts/demo-check.sh
@@ -346,7 +346,7 @@ El script comprueba en paralelo: credenciales AWS, estado de los 9 stacks CloudF
 
 ---
 
-## Teardown — eliminar toda la infraestructura
+## Teardown. eliminar toda la infraestructura
 
 Eliminar los stacks en orden inverso para respetar dependencias:
 

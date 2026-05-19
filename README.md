@@ -271,4 +271,3 @@ aws cloudfront create-invalidation --distribution-id <ID> --paths "/*"
 **Curso:** Infraestructura III  
 **Docente:** Ing. Mario German Castillo Ramirez  
 **Equipo:** Juan C. Melo, Esteban G.V.  
-**Institucion:** Ingenieria de Sistemas . 2026

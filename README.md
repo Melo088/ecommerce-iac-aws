@@ -11,8 +11,34 @@ Plataforma de e-commerce completa desplegada en AWS mediante Infrastructure as C
 
 ---
 
+## Demo
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     INSTRUCCIONES PARA AGREGAR EL VIDEO (borrar este bloque al terminar)
+
+     OPCIÓN A — Video subido directo a GitHub (recomendado, sin YouTube):
+       1. Abrir README.md en github.com → editar con el lápiz
+       2. Arrastrar el archivo de video al editor → GitHub lo sube y genera una URL
+          con formato: https://github.com/user-attachments/assets/xxxx-xxxx-xxxx
+       3. Reemplazar el bloque de abajo con esa URL sola (GitHub lo renderiza como
+          reproductor de video nativo en la página del repo)
+
+     OPCIÓN B — Video subido a YouTube:
+       1. Subir el video a YouTube (puede ser no listado)
+       2. Copiar el ID del video (los 11 caracteres al final de la URL)
+       3. Reemplazar el bloque de abajo con:
+          [![Demo de la aplicación](https://img.youtube.com/vi/VIDEO_ID/maxresdefault.jpg)](https://youtu.be/VIDEO_ID)
+══════════════════════════════════════════════════════════════════════════ -->
+
+> **Video demo del flujo completo de la aplicación — catálogo, carrito, checkout y panel de administración.**
+
+<!-- PEGAR AQUÍ el link o embed del video según las instrucciones de arriba -->
+
+---
+
 ## Indice
 
+- [Demo](#demo)
 - [Arquitectura](#arquitectura)
 - [Stack tecnologico](#stack-tecnologico)
 - [Estructura del repositorio](#estructura-del-repositorio)

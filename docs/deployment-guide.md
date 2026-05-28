@@ -174,10 +174,9 @@ exit
 
 ## Paso 5. Compilar y subir el frontend
 
-Con las URLs de CloudFront disponibles, compilar el frontend apuntando al backend correcto:
+### 5a. Obtener las URLs de CloudFront
 
 ```bash
-ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 BACKEND_CF=$(aws cloudformation describe-stacks --stack-name ecom-frontend \
   --query 'Stacks[0].Outputs[?OutputKey==`BackendCloudFrontUrl`].OutputValue' --output text)
 FRONTEND_BUCKET=$(aws cloudformation describe-stacks --stack-name ecom-frontend \
@@ -187,22 +186,47 @@ FRONTEND_DIST=$(aws cloudformation describe-stacks --stack-name ecom-frontend \
 MEDIA_CF=$(aws cloudformation describe-stacks --stack-name ecom-media \
   --query 'Stacks[0].Outputs[?OutputKey==`MediaCloudFrontUrl`].OutputValue' --output text)
 
-echo "Backend CF: $BACKEND_CF"
-echo "Media CF:   $MEDIA_CF"
+echo "Backend CF:      $BACKEND_CF"
+echo "Media CF:        $MEDIA_CF"
 echo "Frontend Bucket: $FRONTEND_BUCKET"
 echo "Frontend Dist:   $FRONTEND_DIST"
+```
 
-# La MP_PUBLIC_KEY es también de la cuenta de prueba.
+### 5b. Actualizar `frontend/.env` con los valores reales
+
+> **Importante — dos credenciales distintas de MercadoPago:**
+> - `MpAccessToken` (el que se ingresa en `deploy-all.sh`) es el **Access Token** del backend.
+> - `VITE_MP_PUBLIC_KEY` es la **Public Key** del frontend.
+
+Abrir `frontend/.env` y reemplazar su contenido con las URLs obtenidas en 5a:
+
+```
+VITE_API_URL=<valor de $BACKEND_CF>
+VITE_MEDIA_BUCKET_URL=<valor de $MEDIA_CF>
+VITE_MP_PUBLIC_KEY=<valorPKey>
+```
+
+O escribirlo directamente desde la terminal (reemplazar las URLs antes de ejecutar):
+
+```bash
+cat > frontend/.env << EOF
+VITE_API_URL=${BACKEND_CF}
+VITE_MEDIA_BUCKET_URL=${MEDIA_CF}
+VITE_MP_PUBLIC_KEY=<valorPKey>
+EOF
+```
+
+### 5c. Compilar y desplegar
+
+```bash
 cd frontend
-VITE_API_URL=${BACKEND_CF} \
-VITE_MP_PUBLIC_KEY=<tu-public-key-de-mercadopago> \
-VITE_MEDIA_BUCKET_URL=${MEDIA_CF} \
 npm run build
-
 aws s3 sync dist/ s3://${FRONTEND_BUCKET}/ --delete
 aws cloudfront create-invalidation --distribution-id ${FRONTEND_DIST} --paths "/*"
 cd ..
 ```
+
+> **Por qué usar `.env` y no pasar las vars inline:** pasar valores con caracteres especiales directamente en la línea de comando puede causar errores de interpretación en bash (p. ej. `<` se interpreta como redirección de stdin). Escribir `.env` primero y luego correr `npm run build` sin argumentos adicionales es más seguro y reproducible.
 
 ---
 

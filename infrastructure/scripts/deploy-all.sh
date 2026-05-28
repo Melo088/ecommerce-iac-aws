@@ -40,8 +40,7 @@ else
   echo "ecom-s3-artifacts listo"
 fi
 
-# CloudTrail no está disponible en el sandbox de AWS Academy por restricciones de IAM
-# (el rol de laboratorio no tiene permisos para crear trails ni escribir en S3 desde CloudTrail).
+# CloudTrail deshabilitado: el rol voclabs no tiene cloudtrail:CreateTrail.
 
 deploy ecom-vpc infrastructure/cloudformation/01-vpc.yaml
 

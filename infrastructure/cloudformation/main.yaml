@@ -81,11 +81,9 @@ Parameters:
 # ---------------------------------------------------------------------------
 Resources:
 
-  # ---- CloudTrail (deshabilitado) --------------------------------------------
-  # CloudTrail no está disponible en el sandbox de AWS Academy por restricciones
-  # de IAM — el rol de laboratorio no permite crear trails ni configurar S3
-  # como destino de logs de CloudTrail.
-  # El template 08-cloudtrail.yaml existe y es válido para entornos reales.
+  # ---- CloudTrail (no disponible en sandbox) ----------------------------------
+  # El rol voclabs de AWS Academy no tiene cloudtrail:CreateTrail.
+  # El template 08-cloudtrail.yaml es válido para cuentas reales.
 
   # ---- 01: VPC ---------------------------------------------------------------
   # Sin DependsOn — primer stack, sin dependencias externas.

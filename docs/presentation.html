@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Infraestructura III — Proyecto Final</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0d1117;
+  --bg-card: #161b22;
+  --bg-card2: #1c2128;
+  --border: #30363d;
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --orange: #FF9900;
+  --orange-dim: rgba(255,153,0,0.12);
+  --blue: #4FC3F7;
+  --blue-dim: rgba(79,195,247,0.12);
+  --green: #3fb950;
+  --green-dim: rgba(63,185,80,0.12);
+  --purple: #a371f7;
+  --purple-dim: rgba(163,113,247,0.12);
+  --red: #f85149;
+  --font: 'IBM Plex Mono','Courier New',monospace;
+  --track: 0.12em;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;background:var(--bg);color:var(--text);font-family:var(--font);overflow:hidden}
+
+/* ENGINE */
+.slide{
+  position:absolute;inset:0;
+  display:flex;flex-direction:column;
+  padding:38px 56px 38px 56px;
+  opacity:0;pointer-events:none;
+  transition:opacity .3s ease;
+  overflow:hidden;
+}
+.slide.active{opacity:1;pointer-events:auto}
+
+/* CHROME */
+#bar{position:fixed;bottom:0;left:0;height:2px;background:var(--orange);transition:width .3s ease;z-index:200}
+#ctr{position:fixed;bottom:16px;right:24px;font-size:12px;letter-spacing:.18em;color:var(--muted);text-transform:uppercase;z-index:200}
+#hint{position:fixed;bottom:16px;left:24px;font-size:11px;letter-spacing:.15em;color:#3d444d;text-transform:uppercase;z-index:200}
+.nav{position:fixed;top:50%;transform:translateY(-50%);background:none;border:1px solid var(--border);color:var(--muted);font-family:var(--font);font-size:20px;width:46px;height:46px;cursor:pointer;z-index:200;transition:color .2s,border-color .2s;display:flex;align-items:center;justify-content:center}
+.nav:hover{color:var(--orange);border-color:var(--orange)}
+#prev{left:14px}
+#next{right:14px}
+
+/* TYPE */
+.label{font-size:12px;letter-spacing:.22em;color:var(--orange);text-transform:uppercase;margin-bottom:8px}
+h1{font-size:clamp(34px,4.8vw,64px);font-weight:700;letter-spacing:var(--track);text-transform:uppercase;line-height:1.05}
+h2{font-size:clamp(22px,3.0vw,40px);font-weight:600;letter-spacing:var(--track);text-transform:uppercase;line-height:1.15;margin-bottom:22px}
+h3{font-size:13px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--orange);margin-bottom:10px}
+.muted{color:var(--muted)}
+.o{color:var(--orange)}
+.b{color:var(--blue)}
+.g{color:var(--green)}
+.p{color:var(--purple)}
+.r{color:var(--red)}
+.xs{font-size:13px;letter-spacing:.08em}
+.sm{font-size:14px;letter-spacing:.07em}
+.hr{width:100%;height:1px;background:var(--border);margin:16px 0}
+
+/* GRID */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+
+/* CARD */
+.card{background:var(--bg-card);border:1px solid var(--border);padding:16px}
+.co{border-left:3px solid var(--orange)}
+.cb{border-left:3px solid var(--blue)}
+.cg{border-left:3px solid var(--green)}
+.cp{border-left:3px solid var(--purple)}
+.cr{border-left:3px solid var(--red)}
+.cm{border-left:3px solid var(--muted)}
+
+/* BADGES */
+.badge{display:inline-flex;align-items:center;gap:6px;background:var(--orange-dim);border:1px solid var(--orange);padding:4px 10px;font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--orange);white-space:nowrap}
+.badge.b{background:var(--blue-dim);border-color:var(--blue);color:var(--blue)}
+.badge.g{background:var(--green-dim);border-color:var(--green);color:var(--green)}
+.badge.p{background:var(--purple-dim);border-color:var(--purple);color:var(--purple)}
+.badge svg{width:16px;height:16px;flex-shrink:0}
+
+/* CODE */
+.code{background:#010409;border:1px solid var(--border);border-left:3px solid var(--orange);padding:13px 17px;font-size:12px;line-height:1.8;overflow-x:auto}
+.code .cm_{color:#6e7681}
+.code .kw{color:var(--orange)}
+.code .st{color:var(--green)}
+.code .fl{color:var(--blue)}
+
+/* TERMINAL */
+.term{background:#010409;border:1px solid var(--border);padding:13px 17px;font-size:12px;line-height:1.9}
+.term .pr{color:var(--green)}
+.term .out{color:var(--muted)}
+.term .ok{color:var(--green)}
+
+/* LISTS */
+ul{list-style:none}
+li{padding:5px 0;font-size:14px;letter-spacing:.07em;display:flex;align-items:flex-start;gap:9px;line-height:1.5}
+li::before{content:'—';color:var(--orange);flex-shrink:0}
+
+/* SG RULES */
+.sgr{display:flex;align-items:center;gap:7px;padding:5px 0;font-size:13px}
+.port{background:var(--orange-dim);border:1px solid var(--orange);color:var(--orange);padding:3px 9px;font-size:11px;letter-spacing:.1em;min-width:60px;text-align:center}
+
+/* FLOW */
+.flow{display:flex;align-items:center;flex-wrap:wrap;gap:0}
+.fn{background:var(--bg-card);border:1px solid var(--border);padding:7px 13px;font-size:12px;letter-spacing:.1em;text-transform:uppercase;white-space:nowrap}
+.fa{background:var(--orange-dim);border:1px solid var(--orange);color:var(--orange);padding:7px 13px;font-size:12px;letter-spacing:.1em;text-transform:uppercase;white-space:nowrap}
+.arr{color:var(--muted);padding:0 6px;font-size:14px}
+
+/* METRIC */
+.metric{background:var(--bg-card);border:1px solid var(--border);border-top:2px solid var(--orange);padding:14px;text-align:center}
+.mv{font-size:32px;font-weight:700;color:var(--orange);letter-spacing:0}
+.ml{font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-top:3px}
+
+/* ROW LIST */
+.row{display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--border);background:var(--bg-card);font-size:13px;letter-spacing:.07em}
+.rn{color:var(--orange);font-size:11px;font-weight:700;width:24px;flex-shrink:0;letter-spacing:.15em}
+
+/* TABLE */
+.tbl{width:100%;border-collapse:collapse;font-size:12px;letter-spacing:.06em}
+.tbl th{background:var(--bg-card2);border:1px solid var(--border);padding:9px 13px;text-transform:uppercase;letter-spacing:.15em;font-size:11px;color:var(--muted);text-align:left}
+.tbl th.hl{color:var(--orange);border-bottom:2px solid var(--orange)}
+.tbl td{border:1px solid var(--border);padding:8px 13px;vertical-align:top;line-height:1.5}
+.tbl tr:hover td{background:var(--bg-card)}
+
+/* STEP */
+.step{display:flex;align-items:flex-start;gap:10px;padding:7px 0}
+.sn{background:var(--orange);color:#000;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;margin-top:1px}
+.sn.done{background:var(--green)}
+
+img{max-width:100%;max-height:100%;object-fit:contain}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 1 — PORTADA
+═══════════════════════════════════════════════ -->
+<section class="slide active">
+<div class="label">Infraestructura III — Proyecto Final · 2026</div>
+<h1 style="max-width:680px;margin-top:8px">
+  Plataforma<br>E-Commerce<br><span class="o">en AWS</span>
+</h1>
+<div style="width:56px;height:2px;background:var(--orange);margin:22px 0"></div>
+<div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);line-height:2.1">
+  Despliegue escalable con Infrastructure as Code<br>
+  Docente <span style="color:var(--text)">Ing. Mario Germán Castillo Ramírez</span>
+</div>
+<div style="font-size:13px;letter-spacing:.15em;text-transform:uppercase;color:var(--text);margin-top:10px">
+  Juan Camilo Melo &nbsp;·&nbsp; Esteban Guarin
+</div>
+
+<!-- AWS service badges -->
+<div style="position:absolute;bottom:44px;right:60px;display:flex;flex-wrap:wrap;gap:7px;max-width:360px;justify-content:flex-end">
+  <span class="badge">
+    <svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="0" fill="#E7157B" opacity=".85"/><text x="12" y="16" text-anchor="middle" fill="white" font-size="8" font-family="monospace" font-weight="bold">CF</text></svg>
+    CloudFormation
+  </span>
+  <span class="badge">
+    <svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" fill="#FF9900" opacity=".85"/><text x="12" y="16" text-anchor="middle" fill="white" font-size="7" font-family="monospace" font-weight="bold">EC2</text></svg>
+    EC2 · ASG
+  </span>
+  <span class="badge b">
+    <svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" fill="#3B48CC" opacity=".85"/><text x="12" y="16" text-anchor="middle" fill="white" font-size="7" font-family="monospace" font-weight="bold">RDS</text></svg>
+    RDS PostgreSQL
+  </span>
+  <span class="badge g">
+    <svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" fill="#3F8624" opacity=".85"/><text x="12" y="16" text-anchor="middle" fill="white" font-size="9" font-family="monospace" font-weight="bold">S3</text></svg>
+    S3
+  </span>
+  <span class="badge p">
+    <svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" fill="#8C4FFF" opacity=".85"/><text x="12" y="16" text-anchor="middle" fill="white" font-size="6" font-family="monospace" font-weight="bold">CDN</text></svg>
+    CloudFront
+  </span>
+  <span class="badge">
+    <svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" fill="#FF4F8B" opacity=".85"/><text x="12" y="16" text-anchor="middle" fill="white" font-size="6" font-family="monospace" font-weight="bold">CW</text></svg>
+    CloudWatch
+  </span>
+  <span class="badge b">
+    <svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" fill="#E7157B" opacity=".85"/><text x="12" y="16" text-anchor="middle" fill="white" font-size="6" font-family="monospace" font-weight="bold">ALB</text></svg>
+    Load Balancer
+  </span>
+  <span class="badge g">
+    <svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" fill="#FF9900" opacity=".85"/><text x="12" y="16" text-anchor="middle" fill="white" font-size="5.5" font-family="monospace" font-weight="bold">VPC</text></svg>
+    VPC
+  </span>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 2 — OBJETIVO
+═══════════════════════════════════════════════ -->
+<section class="slide">
+<div class="label">01 — Objetivo</div>
+<h2>¿Qué construimos?</h2>
+<div class="g2" style="gap:22px;flex:1">
+  <div>
+    <h3>La plataforma</h3>
+    <ul style="margin-bottom:20px">
+      <li>E-commerce full-stack sobre AWS, 100% desplegable con IaC</li>
+      <li>Frontend React + Backend Java Spring Boot + PostgreSQL RDS</li>
+      <li>Auto Scaling, alta disponibilidad y monitoreo en tiempo real</li>
+      <li>Pago integrado con MercadoPago SDK</li>
+      <li>CDN global con CloudFront para frontend y media</li>
+    </ul>
+    <h3>Alineación rúbrica</h3>
+    <ul>
+      <li>Diseño de solución — VPC, SGs, ALB, ASG, RDS</li>
+      <li>CloudFormation — 10 stacks YAML reproducibles</li>
+      <li>Automatización — 7 scripts Bash orquestados</li>
+      <li>Evaluación de BD — PostgreSQL vs DynamoDB vs Redis</li>
+      <li>Documentación técnica — arquitectura, despliegue, plan</li>
+    </ul>
+  </div>
+  <div>
+    <h3>Alcance</h3>
+    <div class="card cg" style="padding:14px 16px;margin-bottom:10px">
+      <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--green);margin-bottom:6px">Incluido</div>
+      <div class="sm muted" style="line-height:1.9">VPC multi-zona · ALB · ASG 1-3 instancias<br>RDS Single-AZ · S3 + CloudFront (3 distros)<br>CloudWatch + SNS · Bastion Host<br>JWT auth · MercadoPago · Admin panel</div>
+    </div>
+    <div class="card cm" style="padding:14px 16px">
+      <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Fuera de alcance (sandbox)</div>
+      <div class="sm muted" style="line-height:1.9">Multi-AZ RDS · Nuevos roles IAM<br>Route53 · CloudTrail activo<br>Más de 9 instancias EC2</div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 3 — STACK TECNOLÓGICO
+═══════════════════════════════════════════════ -->
+<section class="slide">
+<div class="label">02 — Stack</div>
+<h2>Stack tecnológico</h2>
+<div class="g2" style="gap:18px;flex:1">
+  <div style="display:flex;flex-direction:column;gap:12px">
+    <div class="card cb" style="padding:14px 16px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span class="badge b" style="font-size:8px">Frontend</span>
+      </div>
+      <div class="sm" style="line-height:1.9"><span class="b">React 18</span> + Vite + Tailwind CSS<br>IBM Plex Mono · Brutalist UI · UPPERCASE<br>Framer Motion · Axios<br><span class="muted">Desplegado en S3 + CloudFront</span></div>
+    </div>
+    <div class="card co" style="padding:14px 16px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span class="badge" style="font-size:8px">Backend</span>
+      </div>
+      <div class="sm" style="line-height:1.9"><span class="o">Java 21</span> + Spring Boot 3<br>Spring Security + JWT · Spring Data JPA<br>MercadoPago SDK<br><span class="muted">REST API bajo /api/v1/</span></div>
+    </div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:12px">
+    <div class="card cb" style="padding:14px 16px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span class="badge b" style="font-size:8px">Base de datos</span>
+      </div>
+      <div class="sm" style="line-height:1.9"><span class="b">PostgreSQL 15</span> — AWS RDS<br>db.t3.micro · 20 GB gp2<br>Single-AZ · Backups 7 días<br><span class="muted">Acceso privado vía Security Group</span></div>
+    </div>
+    <div class="card co" style="padding:14px 16px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span class="badge" style="font-size:8px">IaC &amp; Automatización</span>
+      </div>
+      <div class="sm" style="line-height:1.9"><span class="o">AWS CloudFormation</span> YAML<br>10 stacks en orden de dependencia<br>7 scripts Bash orquestados<br><span class="muted">Deploy completo reproducible ~45 min</span></div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 4 — ARQUITECTURA GENERAL
+═══════════════════════════════════════════════ -->
+<section class="slide">
+<div class="label">03 — Arquitectura</div>
+<h2>Arquitectura general en AWS</h2>
+<div style="display:flex;gap:20px;flex:1;min-height:0">
+  <div style="flex:1.5;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);background:var(--bg-card);padding:10px;min-height:0">
+    <img src="diagramInfra.png" alt="Diagrama infraestructura AWS" style="max-height:68vh">
+  </div>
+  <div style="flex:0.6;display:flex;flex-direction:column;gap:8px">
+    <h3>Capas</h3>
+    <div class="card" style="padding:10px 14px;border-left:3px solid var(--purple)">
+      <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--purple)">Internet / CDN</div>
+      <div class="xs muted" style="margin-top:3px">CloudFront — usuarios globales</div>
+    </div>
+    <div class="card co" style="padding:10px 14px">
+      <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--orange)">Capa pública</div>
+      <div class="xs muted" style="margin-top:3px">ALB · Bastion Host · NAT GW</div>
+    </div>
+    <div class="card cg" style="padding:10px 14px">
+      <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--green)">Cómputo</div>
+      <div class="xs muted" style="margin-top:3px">ASG — t2.medium EC2 privadas</div>
+    </div>
+    <div class="card cb" style="padding:10px 14px">
+      <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--blue)">Datos</div>
+      <div class="xs muted" style="margin-top:3px">RDS PostgreSQL — subredes privadas</div>
+    </div>
+    <div class="card cg" style="padding:10px 14px">
+      <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--green)">Storage</div>
+      <div class="xs muted" style="margin-top:3px">4× S3 Buckets · 3× CloudFront</div>
+    </div>
+    <div class="card cp" style="padding:10px 14px">
+      <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--purple)">Observabilidad</div>
+      <div class="xs muted" style="margin-top:3px">CloudWatch · SNS · CloudTrail</div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 5 — VPC Y REDES
+═══════════════════════════════════════════════ -->
+<section class="slide">
+<div class="label">04 — Redes</div>
+<h2>VPC &amp; Networking</h2>
+<div class="g2" style="gap:20px;flex:1">
+  <div>
+    <h3>VPC</h3>
+    <div class="card co" style="padding:12px 16px;margin-bottom:16px;display:inline-block;min-width:100%">
+      <div style="font-size:20px;font-weight:700;letter-spacing:.05em;color:var(--orange)">10.0.0.0/16</div>
+      <div class="xs muted" style="margin-top:3px">Region: us-east-1</div>
+    </div>
+    <h3>Subredes públicas</h3>
+    <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:16px">
+      <div class="row"><span class="rn">1A</span><span>10.0.1.0/24 — us-east-1a &nbsp;·&nbsp; ALB · Bastion</span></div>
+      <div class="row"><span class="rn">1B</span><span>10.0.2.0/24 — us-east-1b &nbsp;·&nbsp; ALB · NAT GW</span></div>
+    </div>
+    <h3>Subredes privadas</h3>
+    <div style="display:flex;flex-direction:column;gap:5px">
+      <div class="row"><span class="rn">2A</span><span>10.0.11.0/24 — us-east-1a &nbsp;·&nbsp; EC2 · RDS</span></div>
+      <div class="row"><span class="rn">2B</span><span>10.0.12.0/24 — us-east-1b &nbsp;·&nbsp; EC2 · RDS</span></div>
+    </div>
+  </div>
+  <div>
+    <h3>Componentes de red</h3>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div class="card" style="padding:11px 14px">
+        <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--orange);margin-bottom:4px">Internet Gateway</div>
+        <div class="xs muted">Acceso bidireccional a internet para subredes públicas</div>
+      </div>
+      <div class="card" style="padding:11px 14px">
+        <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--orange);margin-bottom:4px">NAT Gateway</div>
+        <div class="xs muted">Salida a internet desde privadas (descarga JAR, updates)</div>
+      </div>
+      <div class="card" style="padding:11px 14px">
+        <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--orange);margin-bottom:4px">Route Tables</div>
+        <div class="xs muted" style="line-height:1.7">Pública → IGW &nbsp;·&nbsp; Privada → NAT GW<br>Subred DB aislada sin ruta a internet</div>
+      </div>
+      <div class="card cb" style="padding:11px 14px">
+        <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--blue);margin-bottom:4px">Elastic IP</div>
+        <div class="xs muted">IP fija en Bastion Host para SSH administrativo</div>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 6 — SEGURIDAD
+═══════════════════════════════════════════════ -->
+<section class="slide">
+<div class="label">05 — Seguridad</div>
+<h2>Modelo de seguridad</h2>
+<div class="g2" style="gap:20px;flex:1">
+  <div>
+    <h3>Security Groups — mínimo privilegio</h3>
+    <div style="display:flex;flex-direction:column;gap:9px">
+      <div class="card" style="padding:11px 14px">
+        <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--orange);margin-bottom:7px">ALB Security Group</div>
+        <div class="sgr"><span class="port">:80</span><span class="muted">←</span><span class="muted xs">0.0.0.0/0</span></div>
+        <div class="sgr"><span class="port">:443</span><span class="muted">←</span><span class="muted xs">0.0.0.0/0</span></div>
+      </div>
+      <div class="card" style="padding:11px 14px">
+        <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--orange);margin-bottom:7px">EC2 Security Group</div>
+        <div class="sgr"><span class="port">:8080</span><span class="muted">←</span><span class="muted xs">ALB-SG solamente</span></div>
+        <div class="sgr"><span class="port">:22</span><span class="muted">←</span><span class="muted xs">Bastion-SG solamente</span></div>
+      </div>
+      <div class="card" style="padding:11px 14px">
+        <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--orange);margin-bottom:7px">RDS Security Group</div>
+        <div class="sgr"><span class="port">:5432</span><span class="muted">←</span><span class="muted xs">EC2-SG · Bastion-SG</span></div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <h3>Capas adicionales</h3>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div class="card cb" style="padding:11px 14px">
+        <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--blue);margin-bottom:3px">JWT — Spring Security</div>
+        <div class="xs muted">Tokens firmados · Filtro en cada request · Rutas protegidas/públicas</div>
+      </div>
+      <div class="card co" style="padding:11px 14px">
+        <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--orange);margin-bottom:3px">IMDSv2 obligatorio</div>
+        <div class="xs muted">HttpTokens=required en Launch Template — previene SSRF</div>
+      </div>
+      <div class="card cg" style="padding:11px 14px">
+        <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--green);margin-bottom:3px">Bastion Host</div>
+        <div class="xs muted">Único punto SSH · t2.micro en subred pública · EIP fija</div>
+      </div>
+      <div class="card cp" style="padding:11px 14px">
+        <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--purple);margin-bottom:3px">CloudTrail</div>
+        <div class="xs muted">Audit trail API calls AWS · S3 con log file validation</div>
+      </div>
+      <div class="card co" style="padding:11px 14px">
+        <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--orange);margin-bottom:3px">CORS configurado</div>
+        <div class="xs muted">Spring Boot acepta solo desde dominios CloudFront</div>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 7 — COMPUTE
+═══════════════════════════════════════════════ -->
+<section class="slide">
+<div class="label">06 — Compute</div>
+<h2>Auto Scaling Group &amp; Bastion</h2>
+<div class="g2" style="gap:20px;flex:1">
+  <div>
+    <h3>Launch Template</h3>
+    <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:18px">
+      <div class="row"><span class="rn">OS</span><span>Amazon Linux 2023</span></div>
+      <div class="row"><span class="rn">Tipo</span><span>t2.medium — 2 vCPU · 4 GB RAM</span></div>
+      <div class="row"><span class="rn">Java</span><span>Amazon Corretto 21 + systemd service</span></div>
+      <div class="row"><span class="rn">Boot</span><span>user-data.sh → descarga JAR de S3 → Spring Boot</span></div>
+      <div class="row"><span class="rn">IAM</span><span>LabInstanceProfile (sandbox pre-existente)</span></div>
+    </div>
+    <h3>Auto Scaling Group</h3>
+    <div class="g3" style="gap:8px;margin-bottom:12px">
+      <div class="metric"><div class="mv">1</div><div class="ml">Min</div></div>
+      <div class="metric"><div class="mv">1</div><div class="ml">Desired</div></div>
+      <div class="metric"><div class="mv">3</div><div class="ml">Max</div></div>
+    </div>
+    <div class="card co" style="padding:10px 14px">
+      <div class="sm" style="line-height:1.8">Política: <span class="o">CPU Target Tracking 50%</span><br>Cooldown scale-out: 300s</div>
+    </div>
+  </div>
+  <div>
+    <h3>Bastion Host</h3>
+    <div class="card" style="margin-bottom:14px">
+      <div style="display:flex;flex-direction:column;gap:5px">
+        <div class="row" style="border:none;padding:4px 0"><span class="rn">OS</span><span>Amazon Linux 2023 · t2.micro</span></div>
+        <div class="row" style="border:none;padding:4px 0"><span class="rn">IP</span><span>Elastic IP pública fija</span></div>
+        <div class="row" style="border:none;padding:4px 0"><span class="rn">Tools</span><span>PostgreSQL 15 CLI · AWS CLI</span></div>
+        <div class="row" style="border:none;padding:4px 0"><span class="rn">Uso</span><span>ProxyJump a EC2 privadas, acceso a RDS</span></div>
+      </div>
+    </div>
+    <h3>Ciclo de vida EC2</h3>
+    <div style="display:flex;flex-direction:column;gap:5px">
+      <div class="flow"><div class="fn">ASG trigger</div><span class="arr">→</span><div class="fa">Launch</div><span class="arr">→</span><div class="fn">user-data.sh</div></div>
+      <div class="flow" style="padding-left:18px"><span class="arr">→</span><div class="fn">S3 download JAR</div><span class="arr">→</span><div class="fa">Spring Boot up</div></div>
+      <div class="flow" style="padding-left:18px"><span class="arr">→</span><div class="fn">ALB /api/v1/health</div><span class="arr">→</span><div class="fa">InService</div></div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 8 — BASE DE DATOS
+═══════════════════════════════════════════════ -->
+<section class="slide">
+<div class="label">07 — Base de Datos</div>
+<h2>RDS PostgreSQL 15</h2>
+<div class="g2" style="gap:20px;flex:1">
+  <div>
+    <h3>Configuración</h3>
+    <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:18px">
+      <div class="row"><span class="rn" style="color:var(--blue)">Eng</span><span>PostgreSQL 15</span></div>
+      <div class="row"><span class="rn" style="color:var(--blue)">Inst</span><span>db.t3.micro — 2 vCPU · 1 GB RAM</span></div>
+      <div class="row"><span class="rn" style="color:var(--blue)">AZ</span><span>Single-AZ — us-east-1a (sandbox)</span></div>
+      <div class="row"><span class="rn" style="color:var(--blue)">Disk</span><span>20 GB gp2 · auto-scale hasta 100 GB</span></div>
+      <div class="row"><span class="rn" style="color:var(--blue)">BKP</span><span>7 días de retención</span></div>
+      <div class="row"><span class="rn" style="color:var(--blue)">Net</span><span>Endpoint privado — sin acceso público</span></div>
+    </div>
+    <h3>Acceso</h3>
+    <div class="code">
+<span class="cm_"># Via Bastion Host (ProxyJump)</span>
+<span class="kw">psql</span> <span class="fl">-h</span> [rds-endpoint] \
+     <span class="fl">-U</span> ecomadmin <span class="fl">-d</span> ecomdb
+
+<span class="cm_"># Seed de productos</span>
+<span class="kw">./scripts/seed-products.sh</span></div>
+  </div>
+  <div>
+    <h3>Modelo de datos</h3>
+    <div style="display:flex;flex-direction:column;gap:5px">
+      <div class="card cb" style="padding:10px 14px">
+        <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--blue)">users</div>
+        <div class="xs muted" style="margin-top:3px">id · email · password_hash · role · created_at</div>
+      </div>
+      <div style="text-align:center;font-size:16px;color:var(--muted)">↓ user_id FK</div>
+      <div class="card cb" style="padding:10px 14px">
+        <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--blue)">orders</div>
+        <div class="xs muted" style="margin-top:3px">id · user_id · status · total · mp_payment_id</div>
+      </div>
+      <div style="text-align:center;font-size:16px;color:var(--muted)">↓ order_id FK</div>
+      <div class="card cb" style="padding:10px 14px">
+        <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--blue)">order_items</div>
+        <div class="xs muted" style="margin-top:3px">id · order_id · product_id · qty · unit_price</div>
+      </div>
+      <div style="text-align:center;font-size:16px;color:var(--muted)">↓ product_id FK</div>
+      <div class="card cb" style="padding:10px 14px">
+        <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--blue)">products</div>
+        <div class="xs muted" style="margin-top:3px">id · name · description · price · stock · image_key</div>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 9 — EVALUACIÓN BD
+═══════════════════════════════════════════════ -->
+<section class="slide">
+<div class="label">08 — Evaluación de BD</div>
+<h2>PostgreSQL vs DynamoDB vs Redis</h2>
+<div style="flex:1;display:flex;flex-direction:column;gap:14px">
+  <table class="tbl">
+    <thead>
+      <tr>
+        <th>Criterio</th>
+        <th class="hl">PostgreSQL 15 ✓</th>
+        <th>DynamoDB</th>
+        <th>Redis</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="muted xs">Tipo</td>
+        <td>Relacional ACID</td>
+        <td>NoSQL key-value / doc</td>
+        <td>In-memory key-value</td>
+      </tr>
+      <tr>
+        <td class="muted xs">JOINs</td>
+        <td class="g">Nativo</td>
+        <td class="muted">No — requiere denorm.</td>
+        <td class="muted">No</td>
+      </tr>
+      <tr>
+        <td class="muted xs">Consistencia</td>
+        <td class="g">ACID fuerte</td>
+        <td class="muted">Eventual (configurable)</td>
+        <td class="muted">Eventual</td>
+      </tr>
+      <tr>
+        <td class="muted xs">Escalado</td>
+        <td class="muted">Vertical</td>
+        <td class="g">Horizontal automático</td>
+        <td class="g">Horizontal</td>
+      </tr>
+      <tr>
+        <td class="muted xs">ORM / JPA</td>
+        <td class="g">Spring Data JPA nativo</td>
+        <td class="muted">Integración manual</td>
+        <td class="muted">No aplica</td>
+      </tr>
+      <tr>
+        <td class="muted xs">¿Por qué no?</td>
+        <td class="o">— Elegido ✓</td>
+        <td class="muted">Denorm. costosa con datos relacionales</td>
+        <td class="muted">Quota sandbox; JWT elimina sesiones</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="card co" style="padding:13px 18px">
+    <div class="sm" style="line-height:1.8"><span class="o">Conclusión:</span> Para un e-commerce con relaciones User→Order→Item→Product e integridad referencial, PostgreSQL es la elección natural con JPA. DynamoDB brillaría con millones de lecturas simples de productos. Redis complementaría en producción real como caché de catálogo.</div>
+  </div>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 10 — STORAGE Y CDN
+═══════════════════════════════════════════════ -->
+<section class="slide">
+<div class="label">09 — Storage &amp; CDN</div>
+<h2>S3 + CloudFront</h2>
+<div class="g2" style="gap:20px;flex:1">
+  <div>
+    <h3>Buckets S3</h3>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div class="card cg" style="padding:11px 14px">
+        <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--green)">Artifacts</div>
+        <div class="xs muted" style="margin-top:3px"><code>ecom-s3-artifacts</code><br>JARs de backend + templates CloudFormation</div>
+      </div>
+      <div class="card cg" style="padding:11px 14px">
+        <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--green)">Frontend</div>
+        <div class="xs muted" style="margin-top:3px"><code>ecom-frontend-*</code><br>React build — acceso solo vía CloudFront OAC</div>
+      </div>
+      <div class="card cg" style="padding:11px 14px">
+        <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--green)">Media</div>
+        <div class="xs muted" style="margin-top:3px"><code>ecom-media-*</code><br>Imágenes de productos · Presigned URLs · CDN</div>
+      </div>
+      <div class="card cm" style="padding:11px 14px">
+        <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)">CloudTrail Logs</div>
+        <div class="xs muted" style="margin-top:3px">Audit trail con log file validation · 90 días</div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <h3>Distribuciones CloudFront</h3>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
+      <div class="card cp" style="padding:11px 14px">
+        <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--purple)">Frontend CDN</div>
+        <div class="xs muted" style="margin-top:3px">Origin: S3 OAC SigV4 · CachingOptimized<br>404 → index.html (SPA routing)</div>
+      </div>
+      <div class="card cp" style="padding:11px 14px">
+        <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--purple)">Backend API CDN</div>
+        <div class="xs muted" style="margin-top:3px">Origin: ALB · Sin caché<br>Todos los headers y cookies al backend</div>
+      </div>
+      <div class="card cp" style="padding:11px 14px">
+        <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--purple)">Media CDN</div>
+        <div class="xs muted" style="margin-top:3px">Origin: S3 media OAC · CachingOptimized<br>Presigned URLs para uploads directos</div>
+      </div>
+    </div>
+    <div class="card co" style="padding:10px 14px">
+      <div class="xs" style="line-height:1.7">S3 sin acceso público — todo tráfico forzado por CloudFront con <span class="o">Origin Access Control (SigV4)</span></div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 11 — MONITOREO
+═══════════════════════════════════════════════ -->
+<section class="slide">
+<div class="label">10 — Observabilidad</div>
+<h2>CloudWatch &amp; SNS</h2>
+<div class="g2" style="gap:20px;flex:1">
+  <div>
+    <h3>Alarmas CloudWatch</h3>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div class="card co" style="padding:11px 14px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--orange)">High CPU</div>
+          <span class="badge" style="font-size:8px;padding:2px 7px">CPU &gt; 80%</span>
+        </div>
+        <div class="xs muted" style="margin-top:5px">Trigger scale-out ASG + alerta email SNS</div>
+      </div>
+      <div class="card cb" style="padding:11px 14px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--blue)">Low CPU</div>
+          <span class="badge b" style="font-size:8px;padding:2px 7px">CPU &lt; 20%</span>
+        </div>
+        <div class="xs muted" style="margin-top:5px">Trigger scale-in del ASG (ahorro de costos)</div>
+      </div>
+      <div class="card co" style="padding:11px 14px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--orange)">5xx Errors</div>
+          <span class="badge" style="font-size:8px;padding:2px 7px">&gt; 10/min</span>
+        </div>
+        <div class="xs muted" style="margin-top:5px">Alerta de errores backend en ALB</div>
+      </div>
+      <div class="card cr" style="padding:11px 14px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--red)">Unhealthy Hosts</div>
+          <span style="background:rgba(248,81,73,.1);border:1px solid var(--red);color:var(--red);padding:2px 7px;font-size:8px;letter-spacing:.1em;text-transform:uppercase">&gt; 0</span>
+        </div>
+        <div class="xs muted" style="margin-top:5px">Alerta crítica — instancias fuera del target group</div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <h3>Flujo de notificación</h3>
+    <div class="card" style="padding:14px;margin-bottom:14px">
+      <div class="flow" style="gap:0">
+        <div class="fa" style="font-size:9px">Alarm</div><span class="arr">→</span>
+        <div class="fn" style="font-size:9px">SNS Topic</div><span class="arr">→</span>
+        <div class="fa" style="font-size:9px">Email</div>
+      </div>
+    </div>
+    <h3>Dashboard</h3>
+    <div class="card" style="padding:13px 14px;margin-bottom:14px">
+      <div class="xs muted" style="line-height:1.9">CloudWatch Dashboard tiempo real:<br>CPU Utilization · Network In/Out<br>Request Count · Latency p50/p99<br>Healthy Host Count</div>
+    </div>
+    <h3>Logs</h3>
+    <div class="code" style="font-size:9px">
+<span class="cm_"># Ver logs de aplicación</span>
+<span class="kw">aws</span> logs get-log-events \
+  <span class="fl">--log-group-name</span> /ecom/app \
+  <span class="fl">--log-stream-name</span> {instance-id}</div>
+  </div>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 12 — IaC CLOUDFORMATION
+═══════════════════════════════════════════════ -->
+<section class="slide">
+<div class="label">11 — Infrastructure as Code</div>
+<h2>CloudFormation — 10 Stacks</h2>
+<div class="g2" style="gap:20px;flex:1">
+  <div>
+    <h3>Orden de despliegue</h3>
+    <div style="display:flex;flex-direction:column;gap:4px">
+      <div class="row"><span class="rn">00</span><span>s3-artifacts — bucket bootstrap de templates</span></div>
+      <div class="row"><span class="rn">01</span><span>vpc — VPC, subredes, IGW, NAT GW, route tables</span></div>
+      <div class="row"><span class="rn">02</span><span>security-groups — SGs para ALB, EC2, RDS, Bastion</span></div>
+      <div class="row"><span class="rn">03</span><span>rds — PostgreSQL en subredes privadas</span></div>
+      <div class="row"><span class="rn">04</span><span>alb — Application Load Balancer + Target Group</span></div>
+      <div class="row"><span class="rn">05</span><span>autoscaling — Launch Template + ASG + Bastion</span></div>
+      <div class="row"><span class="rn">06</span><span>cloudwatch — Alarmas + Dashboard + SNS</span></div>
+      <div class="row"><span class="rn">07</span><span>frontend — S3 estático + CloudFront distribution</span></div>
+      <div class="row"><span class="rn">08</span><span>media — S3 media + CloudFront + CORS</span></div>
+      <div class="row" style="opacity:.4"><span class="rn">08</span><span>cloudtrail — deshabilitado (sandbox)</span></div>
+    </div>
+  </div>
+  <div>
+    <h3>Patrones usados</h3>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div class="card co" style="padding:11px 14px">
+        <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--orange);margin-bottom:3px">Export / Import</div>
+        <div class="xs muted">Cada stack exporta recursos; siguientes los importan con <code>!ImportValue</code></div>
+      </div>
+      <div class="card co" style="padding:11px 14px">
+        <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--orange);margin-bottom:3px">Naming convention</div>
+        <div class="xs muted"><code>ecom-{recurso}-{env}</code> &nbsp;·&nbsp; ej: ecom-alb-prod</div>
+      </div>
+      <div class="card co" style="padding:11px 14px">
+        <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--orange);margin-bottom:3px">Tags obligatorios</div>
+        <div class="xs muted">Project · Environment · Owner en todos los recursos</div>
+      </div>
+      <div class="card co" style="padding:11px 14px">
+        <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--orange);margin-bottom:3px">Parámetros tipados</div>
+        <div class="xs muted">Type, Description y Constraints en cada parámetro</div>
+      </div>
+    </div>
+    <div class="code" style="margin-top:10px;font-size:9px">
+<span class="cm_"># Validar antes de desplegar</span>
+<span class="kw">aws</span> cloudformation validate-template \
+  <span class="fl">--template-body</span> <span class="st">file://01-vpc.yaml</span></div>
+  </div>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 13 — AUTOMATIZACIÓN
+═══════════════════════════════════════════════ -->
+<section class="slide">
+<div class="label">12 — Automatización</div>
+<h2>Scripts de deploy</h2>
+<div class="g2" style="gap:20px;flex:1">
+  <div>
+    <h3>Scripts principales</h3>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <div class="card co" style="padding:9px 13px">
+        <div style="font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--orange)">deploy-all.sh</div>
+        <div class="xs muted" style="margin-top:2px">Orquesta el deploy de los 10 stacks con prompts interactivos</div>
+      </div>
+      <div class="card cg" style="padding:9px 13px">
+        <div style="font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--green)">upload-templates.sh</div>
+        <div class="xs muted" style="margin-top:2px">Bootstrap — sube todos los YAML de CF al bucket S3</div>
+      </div>
+      <div class="card cb" style="padding:9px 13px">
+        <div style="font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--blue)">seed-products.sh</div>
+        <div class="xs muted" style="margin-top:2px">Siembra productos en RDS via API REST a través de Bastion</div>
+      </div>
+      <div class="card cp" style="padding:9px 13px">
+        <div style="font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--purple)">stress-test.sh</div>
+        <div class="xs muted" style="margin-top:2px">Genera carga CPU para verificar auto scaling (ProxyJump)</div>
+      </div>
+      <div class="card co" style="padding:9px 13px">
+        <div style="font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--orange)">demo-check.sh</div>
+        <div class="xs muted" style="margin-top:2px">Verifica stacks y endpoints antes de presentar</div>
+      </div>
+      <div class="card cm" style="padding:9px 13px">
+        <div style="font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted)">set-aws-session.sh</div>
+        <div class="xs muted" style="margin-top:2px">Renueva credenciales AWS Academy (expiran cada 4h)</div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <h3>Flujo deploy-all.sh</h3>
+    <div class="term">
+      <div><span class="pr">$</span> <span style="color:var(--orange)">./infrastructure/scripts/deploy-all.sh</span></div>
+      <div class="out">→ Alert email: [input]</div>
+      <div class="out">→ DB password: [input]</div>
+      <div class="out">→ MercadoPago token: [input]</div>
+      <div class="out">→ JWT secret: [input]</div>
+      <div>&nbsp;</div>
+      <div class="out">[1/10] S3 artifacts bucket...</div>
+      <div class="out">[2/10] VPC stack...</div>
+      <div class="out">[3/10] Security Groups...</div>
+      <div class="out">[4/10] RDS...</div>
+      <div class="out">[5/10] ALB...</div>
+      <div class="out">[6/10] Key pair ecom-keypair...</div>
+      <div class="out">[7/10] ASG...</div>
+      <div class="out">[8/10] CloudWatch...</div>
+      <div class="out">[9/10] Media stack...</div>
+      <div class="out">[10/10] Frontend stack...</div>
+      <div>&nbsp;</div>
+      <div><span class="ok">✓</span> <span style="color:var(--green)">Deploy completo. ~45-60 min</span></div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 14 — AUTO SCALING
+═══════════════════════════════════════════════ -->
+<section class="slide">
+<div class="label">13 — Auto Scaling</div>
+<h2>Auto Scaling en acción</h2>
+<div class="g2" style="gap:20px;flex:1">
+  <div>
+    <h3>Política — CPU Target Tracking</h3>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
+      <div class="card co" style="padding:11px 14px">
+        <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--orange);margin-bottom:3px">Scale-Out</div>
+        <div class="xs muted" style="line-height:1.7">CPU &gt; 50% sostenido → ASG lanza t2.medium<br>Cooldown: 300 segundos</div>
+      </div>
+      <div class="card cb" style="padding:11px 14px">
+        <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--blue);margin-bottom:3px">Scale-In</div>
+        <div class="xs muted" style="line-height:1.7">CPU &lt; 50% por 5 min → termina instancia extra<br>Protege la instancia original</div>
+      </div>
+    </div>
+    <h3>Stress Test</h3>
+    <div class="code" style="font-size:9px">
+<span class="cm_"># stress-test.sh — ProxyJump via Bastion</span>
+<span class="kw">ssh</span> <span class="fl">-J</span> ec2-user@<span class="st">{bastion-ip}</span> \
+    ec2-user@<span class="st">{ec2-private-ip}</span> \
+    <span class="st">"stress --cpu 2 --timeout 300s"</span>
+
+<span class="cm_"># Verificar nuevo nodo</span>
+<span class="kw">aws</span> autoscaling describe-auto-scaling-groups \
+  <span class="fl">--auto-scaling-group-names</span> ecom-asg-prod</div>
+  </div>
+  <div>
+    <h3>Ciclo scale-out completo</h3>
+    <div style="display:flex;flex-direction:column;gap:7px">
+      <div class="step"><div class="sn">1</div><div class="xs" style="line-height:1.6">CPU &gt; 50% en instancia existente por ≥ 1 min</div></div>
+      <div class="step"><div class="sn">2</div><div class="xs" style="line-height:1.6">CloudWatch Alarm → ASG Scale-Out policy</div></div>
+      <div class="step"><div class="sn">3</div><div class="xs" style="line-height:1.6">Nueva instancia t2.medium con Launch Template</div></div>
+      <div class="step"><div class="sn">4</div><div class="xs" style="line-height:1.6">user-data.sh: descarga JAR de S3 → configura env → systemd</div></div>
+      <div class="step"><div class="sn">5</div><div class="xs" style="line-height:1.6">ALB health check GET /api/v1/health → HTTP 200</div></div>
+      <div class="step"><div class="sn done">6</div><div class="xs" style="line-height:1.6"><span class="g">InService</span> — ALB distribuye tráfico a 2 instancias</div></div>
+    </div>
+    <div class="g3" style="gap:8px;margin-top:14px">
+      <div class="metric"><div class="mv">~3 min</div><div class="ml">Bootstrap</div></div>
+      <div class="metric"><div class="mv">2→3</div><div class="ml">Instancias</div></div>
+      <div class="metric" style="border-top-color:var(--green)"><div class="mv" style="color:var(--green)">0 s</div><div class="ml">Downtime</div></div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 15 — LA APLICACIÓN
+═══════════════════════════════════════════════ -->
+<section class="slide">
+<div class="label">14 — Showcase</div>
+<h2>La aplicación</h2>
+<div class="g2" style="gap:20px;flex:1">
+  <div>
+    <h3>Endpoints REST</h3>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <div class="card co" style="padding:9px 13px">
+        <div style="font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--orange)">GET /api/v1/products</div>
+        <div class="xs muted" style="margin-top:2px">Catálogo con imágenes desde CloudFront/S3</div>
+      </div>
+      <div class="card co" style="padding:9px 13px">
+        <div style="font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--orange)">POST · DELETE /api/v1/cart</div>
+        <div class="xs muted" style="margin-top:2px">Carrito persistente en DB · contexto React</div>
+      </div>
+      <div class="card co" style="padding:9px 13px">
+        <div style="font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--orange)">POST /api/v1/checkout</div>
+        <div class="xs muted" style="margin-top:2px">Pago con MercadoPago SDK — preference + webhook</div>
+      </div>
+      <div class="card co" style="padding:9px 13px">
+        <div style="font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--orange)">POST /api/v1/auth/login · /register</div>
+        <div class="xs muted" style="margin-top:2px">Autenticación JWT · Spring Security</div>
+      </div>
+      <div class="card cb" style="padding:9px 13px">
+        <div style="font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--blue)">GET /api/v1/orders</div>
+        <div class="xs muted" style="margin-top:2px">Historial de pedidos del usuario autenticado</div>
+      </div>
+      <div class="card cp" style="padding:9px 13px">
+        <div style="font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--purple)">Admin Panel</div>
+        <div class="xs muted" style="margin-top:2px">CRUD de productos + upload de imágenes a S3</div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <h3>Diseño UI</h3>
+    <div class="card" style="padding:14px;margin-bottom:14px">
+      <div class="sm" style="line-height:1.9">Estética <span class="o">brutalist minimalista</span><br>IBM Plex Mono · ALL CAPS<br>Sin bordes redondeados · Sin sombras<br>Framer Motion · Mobile-first</div>
+    </div>
+    <h3>Flujo MercadoPago</h3>
+    <div style="display:flex;flex-direction:column;gap:5px">
+      <div class="flow"><div class="fn" style="font-size:9px">POST /checkout</div><span class="arr">→</span><div class="fa" style="font-size:9px">Preference MP</div></div>
+      <div class="flow" style="padding-left:16px"><span class="arr">→</span><div class="fn" style="font-size:9px">Redirect usuario</div><span class="arr">→</span><div class="fa" style="font-size:9px">Pago</div></div>
+      <div class="flow" style="padding-left:16px"><span class="arr">→</span><div class="fn" style="font-size:9px">Webhook MP</div><span class="arr">→</span><div class="fa" style="font-size:9px">Order PAID</div></div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 16 — FLUJOS DE TRÁFICO
+═══════════════════════════════════════════════ -->
+<section class="slide">
+<div class="label">15 — Flujos</div>
+<h2>Flujos de tráfico</h2>
+<div style="flex:1;display:flex;flex-direction:column;gap:18px;justify-content:center">
+  <div>
+    <h3>1 — Carga del frontend</h3>
+    <div class="flow"><div class="fn">Usuario</div><span class="arr">→</span><div class="fa">CloudFront (Frontend)</div><span class="arr">→</span><div class="fn">S3 React Build</div><span class="arr">→</span><div class="fa">Browser SPA</div></div>
+  </div>
+  <div>
+    <h3>2 — Llamada a la API</h3>
+    <div class="flow"><div class="fn">React App</div><span class="arr">→</span><div class="fa">CloudFront (API)</div><span class="arr">→</span><div class="fn">ALB</div><span class="arr">→</span><div class="fa">EC2 Spring Boot</div><span class="arr">→</span><div class="fn">RDS PostgreSQL</div></div>
+  </div>
+  <div>
+    <h3>3 — Imágenes de productos</h3>
+    <div class="flow"><div class="fn">EC2 genera</div><span class="arr">→</span><div class="fa">Presigned URL</div><span class="arr">→</span><div class="fn">Upload directo</div><span class="arr">→</span><div class="fa">S3 Media</div><span class="arr">→</span><div class="fn">CloudFront CDN</div></div>
+  </div>
+  <div>
+    <h3>4 — Bootstrap de EC2</h3>
+    <div class="flow"><div class="fn">ASG Launch</div><span class="arr">→</span><div class="fa">user-data.sh</div><span class="arr">→</span><div class="fn">NAT GW</div><span class="arr">→</span><div class="fa">S3 (JAR)</div><span class="arr">→</span><div class="fn">systemd start</div></div>
+  </div>
+  <div>
+    <h3>5 — Pago MercadoPago</h3>
+    <div class="flow"><div class="fn">EC2</div><span class="arr">→</span><div class="fa">MP API</div><span class="arr">→</span><div class="fn">Usuario paga</div><span class="arr">→</span><div class="fa">Webhook</div><span class="arr">→</span><div class="fn">EC2 → RDS</div></div>
+  </div>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 17 — RETOS
+═══════════════════════════════════════════════ -->
+<section class="slide">
+<div class="label">16 — Retos</div>
+<h2>Retos y limitaciones del sandbox</h2>
+<div class="g2" style="gap:16px;flex:1">
+  <div style="display:flex;flex-direction:column;gap:9px">
+    <div class="card cr" style="padding:12px 15px">
+      <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--red);margin-bottom:4px">IAM Read-Only</div>
+      <div class="xs muted" style="line-height:1.7"><span class="o">Problema:</span> No crear roles IAM<br><span class="g">Solución:</span> Usar LabInstanceProfile existente del sandbox</div>
+    </div>
+    <div class="card cr" style="padding:12px 15px">
+      <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--red);margin-bottom:4px">RDS Sin Multi-AZ</div>
+      <div class="xs muted" style="line-height:1.7"><span class="o">Problema:</span> Sandbox no soporta Multi-AZ<br><span class="g">Solución:</span> Single-AZ con backups de 7 días</div>
+    </div>
+    <div class="card cr" style="padding:12px 15px">
+      <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--red);margin-bottom:4px">CloudTrail Bloqueado</div>
+      <div class="xs muted" style="line-height:1.7"><span class="o">Problema:</span> Sandbox bloquea CreateTrail<br><span class="g">Solución:</span> Stack deshabilitado; CT nativo de sandbox activo</div>
+    </div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:9px">
+    <div class="card cr" style="padding:12px 15px">
+      <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--red);margin-bottom:4px">SSH a EC2 Privadas</div>
+      <div class="xs muted" style="line-height:1.7"><span class="o">Problema:</span> EC2 en subredes privadas, sin IP pública<br><span class="g">Solución:</span> ProxyJump via Bastion + ssh-agent forwarding</div>
+    </div>
+    <div class="card cr" style="padding:12px 15px">
+      <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--red);margin-bottom:4px">Credenciales AWS Academy</div>
+      <div class="xs muted" style="line-height:1.7"><span class="o">Problema:</span> Expiran cada 4 horas<br><span class="g">Solución:</span> Script set-aws-session.sh renueva sesión</div>
+    </div>
+    <div class="card cr" style="padding:12px 15px">
+      <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--red);margin-bottom:4px">Spring Boot necesita RAM</div>
+      <div class="xs muted" style="line-height:1.7"><span class="o">Problema:</span> t2.micro insuficiente para JVM<br><span class="g">Solución:</span> t2.medium (4 GB RAM) — estable y confiable</div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════
+     SLIDE 18 — CONCLUSIONES
+═══════════════════════════════════════════════ -->
+<section class="slide">
+<div class="label">17 — Conclusiones</div>
+<h2>Resultados y aprendizajes</h2>
+<div class="g2" style="gap:20px;margin-bottom:20px">
+  <div>
+    <h3>Lo que entregamos</h3>
+    <ul>
+      <li>10 stacks CloudFormation 100% reproducibles</li>
+      <li>7 scripts Bash para automatización completa</li>
+      <li>Auto Scaling verificado con stress test real</li>
+      <li>Arquitectura de producción con CDN global</li>
+      <li>App e-commerce funcional con MercadoPago</li>
+      <li>Documentación técnica completa — 4 documentos</li>
+    </ul>
+  </div>
+  <div>
+    <h3>Aprendizajes clave</h3>
+    <ul>
+      <li>IaC first — toda infraestructura como código desde el día 1</li>
+      <li>Seguridad en capas — SGs, JWT, IMDSv2, OAC</li>
+      <li>Los sandboxes tienen límites reales — hay que adaptarse</li>
+      <li>El monitoring no es opcional — CloudWatch desde el inicio</li>
+      <li>Deploy reproducible supera siempre al deploy manual</li>
+    </ul>
+  </div>
+</div>
+<div class="hr"></div>
+<div style="display:flex;justify-content:space-between;align-items:flex-end">
+  <div>
+    <div style="font-size:13px;letter-spacing:.15em;text-transform:uppercase;color:var(--text)">Juan Camilo Melo &nbsp;·&nbsp; Esteban Guarin</div>
+    <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-top:6px">Infraestructura III · Ing. Mario Germán Castillo Ramírez · 2026</div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
+    <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+      <span class="badge">CF · 10 stacks</span>
+      <span class="badge b">RDS PostgreSQL</span>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+      <span class="badge g">S3 · 4 buckets</span>
+      <span class="badge p">CloudFront · 3 CDN</span>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+      <span class="badge">ASG · 1-3 t2.medium</span>
+      <span class="badge b">ALB + CloudWatch</span>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════
+     CHROME
+═══════════════════════════════════════════════ -->
+<div id="bar"></div>
+<div id="ctr">1 / 18</div>
+<div id="hint">← → navigate · space next</div>
+<button class="nav" id="prev" onclick="go(-1)">←</button>
+<button class="nav" id="next" onclick="go(1)">→</button>
+
+<script>
+const slides = document.querySelectorAll('.slide');
+let cur = 0;
+
+function show(n) {
+  slides[cur].classList.remove('active');
+  cur = ((n % slides.length) + slides.length) % slides.length;
+  slides[cur].classList.add('active');
+  document.getElementById('bar').style.width = ((cur + 1) / slides.length * 100) + '%';
+  document.getElementById('ctr').textContent = (cur + 1) + ' / ' + slides.length;
+}
+
+function go(d) { show(cur + d); }
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); go(1); }
+  if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')                    { e.preventDefault(); go(-1); }
+  if (e.key === 'Home') show(0);
+  if (e.key === 'End')  show(slides.length - 1);
+});
+
+let tx = 0;
+document.addEventListener('touchstart', e => tx = e.touches[0].clientX, {passive:true});
+document.addEventListener('touchend',   e => { const d = e.changedTouches[0].clientX - tx; if (Math.abs(d) > 50) go(d < 0 ? 1 : -1); }, {passive:true});
+
+show(0);
+</script>
+</body>
+</html>

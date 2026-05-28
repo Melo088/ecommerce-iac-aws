@@ -95,8 +95,8 @@ El script solicita cuatro valores de forma interactiva:
 |---|---|
 | `AlertEmail` | Email que recibirá notificaciones de CloudWatch/SNS |
 | `DBPassword` | Contraseña para el usuario `ecomadmin` de PostgreSQL (mínimo 8 caracteres) |
-| `MpAccessToken` | Access token de MercadoPago (formato `APP_USR-...`) |
-| `JwtSecret` | Secreto para firmar JWT (mínimo 32 caracteres) |
+| `MpAccessToken` | Access token de MercadoPago de la cuenta de prueba (formato `APP_USR-...`) |
+| `JwtSecret` | Secreto para firmar JWT (mínimo 32 caracteres), ej. `ecom-jwt-secret-prod-2026-min32chars` |
 
 **Orden de despliegue y tiempos aproximados:**
 
@@ -146,6 +146,13 @@ echo "Bastion: $BASTION_IP"
 scp -i ~/.ssh/ecom-keypair.pem backend/src/main/resources/data.sql \
   ec2-user@${BASTION_IP}:/tmp/data.sql
 
+# Obten el endopoint de RDS 
+DB_ENDPOINT=$(aws cloudformation describe-stacks \
+  --stack-name ecom-rds \
+  --query 'Stacks[0].Outputs[?OutputKey==`DBEndpoint`].OutputValue' \
+  --output text)
+echo "DB Endpoint: $DB_ENDPOINT"
+
 # SSH al Bastion
 ssh -i ~/.ssh/ecom-keypair.pem ec2-user@${BASTION_IP}
 ```
@@ -154,12 +161,8 @@ Dentro del Bastion, obtener el endpoint de RDS y ejecutar el seed:
 
 ```bash
 # Dentro del Bastion
-DB_ENDPOINT=$(aws cloudformation describe-stacks \
-  --stack-name ecom-rds \
-  --query 'Stacks[0].Outputs[?OutputKey==`DBEndpoint`].OutputValue' \
-  --output text)
-
-psql -h $DB_ENDPOINT -U ecomadmin -d ecomdb -f /tmp/data.sql
+psql -h <DB_ENPOINT> -U ecomadmin -d ecomdb -f /tmp/data.sql
+# reemplaza <DB_ENDPOINT> por el resultado del comando anterior
 # Password: el que ingresaste en deploy-all.sh (DBPassword)
 # Resultado esperado: INSERT 0 62
 exit
@@ -189,6 +192,7 @@ echo "Media CF:   $MEDIA_CF"
 echo "Frontend Bucket: $FRONTEND_BUCKET"
 echo "Frontend Dist:   $FRONTEND_DIST"
 
+# La MP_PUBLIC_KEY es también de la cuenta de prueba.
 cd frontend
 VITE_API_URL=${BACKEND_CF} \
 VITE_MP_PUBLIC_KEY=<tu-public-key-de-mercadopago> \
@@ -247,9 +251,9 @@ aws autoscaling start-instance-refresh \
 
 Monitorear hasta `Status: Successful`:
 ```bash
-aws autoscaling describe-instance-refreshes \
+watch -n 30 "aws autoscaling describe-instance-refreshes \
   --auto-scaling-group-name ecom-asg-prod \
-  --query 'InstanceRefreshes[0].{Status:Status,Porcentaje:PercentageComplete}'
+  --query 'InstanceRefreshes[0].{Status:Status,Pct:PercentageComplete}'"
 ```
 
 ---

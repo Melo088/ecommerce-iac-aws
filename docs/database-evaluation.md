@@ -119,8 +119,8 @@ El volumen de la demostración no justifica la complejidad adicional por las sig
 Para una carga de producción real, agregar ElastiCache Redis frente a RDS en el endpoint `GET /api/v1/products` podría reducir la latencia y disminuir la carga sobre RDS, asumiendo que el catálogo cambia con poca frecuencia y que la mayoría del tráfico es de lectura.
 
 ```
-Request → Spring Boot → Redis HIT  → respuesta en ~1 ms
-                     → Redis MISS → RDS → actualiza caché → ~20 ms
+Request → Spring Boot → Redis HIT  → respuesta en ~x ms
+                     → Redis MISS → RDS → actualiza caché → ~xx ms
 ```
 
 ---

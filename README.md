@@ -12,11 +12,10 @@ Plataforma de e-commerce completa desplegada en AWS mediante Infrastructure as C
 ---
 
 ## Demo
-<video src="https://github.com/user-attachments/assets/aefed6d8-ed05-4767-ae90-3693b0b983f6" controls autoplay loop muted width="100%"></video>
+
 
 > **Video demo del flujo completo de la aplicación — catálogo, carrito, checkout y panel de administración.**
 
-<!-- PEGAR AQUÍ el link o embed del video según las instrucciones de arriba -->
 
 ---
 
